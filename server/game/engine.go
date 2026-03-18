@@ -172,6 +172,20 @@ func (e *Engine) RemovePlayer(playerID string) {
 	}
 }
 
+func (e *Engine) Preview(playerID string) map[string]int {
+	preview := make(map[string]int)
+	playerScores := e.scores[playerID]
+	if playerScores == nil {
+		return preview
+	}
+	for _, cat := range categories {
+		if _, scored := playerScores[cat]; !scored {
+			preview[cat] = Calculate(e.dice, cat)
+		}
+	}
+	return preview
+}
+
 func (e *Engine) Rankings() []message.RankEntry {
 	type ps struct {
 		id    string

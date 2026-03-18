@@ -163,3 +163,36 @@ func TestHoldInvalidIndex(t *testing.T) {
 		t.Error("expected error for index -1")
 	}
 }
+
+func TestPreview(t *testing.T) {
+	e := NewEngine([]string{"p1", "p2"})
+	e.Roll("p1")
+	preview := e.Preview("p1")
+	if len(preview) != 12 {
+		t.Errorf("preview categories = %d, want 12", len(preview))
+	}
+	dice := e.Dice()
+	sum := 0
+	for _, d := range dice {
+		sum += d
+	}
+	if preview["choice"] != sum {
+		t.Errorf("choice preview = %d, want %d", preview["choice"], sum)
+	}
+}
+
+func TestPreviewExcludesScored(t *testing.T) {
+	e := NewEngine([]string{"p1", "p2"})
+	e.Roll("p1")
+	e.Score("p1", "choice")
+	e.Roll("p2")
+	e.Score("p2", "choice")
+	e.Roll("p1")
+	preview := e.Preview("p1")
+	if _, ok := preview["choice"]; ok {
+		t.Error("choice should not be in preview after scoring")
+	}
+	if len(preview) != 11 {
+		t.Errorf("preview categories = %d, want 11", len(preview))
+	}
+}
