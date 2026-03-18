@@ -133,11 +133,63 @@ type GameSyncPayload struct {
 ```
 - 재접속 시: rollCount > 0이면 현재 턴 플레이어의 preview 포함, 아니면 빈 map
 
-## 4. 주사위 보관함 UI
+## 4. 전체화면 3D 배경 + UI 오버레이
+
+### 현재 상태
+- 3D 씬이 `dice3d.html`에 독립적으로 존재
+- `DiceArea` 컴포넌트가 iframe으로 임베드 (`max-h-[40vh]`)
+- `window.DiceGame` API로 iframe과 통신
+
+### 변경: iframe 제거, Three.js 직접 통합
+- `dice3d.html`의 Three.js + cannon-es 로직을 React 컴포넌트로 이전
+- Three.js 캔버스가 게임 페이지 전체 배경 (`position: fixed, inset: 0, z-index: 0`)
+- 모든 게임 UI (롤 버튼, 점수판, 트레이, 턴 표시)는 오버레이 (`position: relative, z-index: 10`)
+- `dice3d.html`은 삭제하지 않고 standalone 테스트용으로 보존
+
+### 새 컴포넌트 구조
+```
+GamePage
+├── DiceScene (Three.js canvas, 전체화면 배경, z-0)
+│   └── Three.js scene, camera, renderer, physics
+└── GameOverlay (UI 오버레이, z-10)
+    ├── TopBar (라운드, 턴 표시)
+    ├── DiceTray (하단 중앙, 5칸 보관함)
+    ├── RollButton (하단 중앙, 트레이 위)
+    ├── ScoreBoard (오른쪽 사이드바)
+    └── ReactionBar (하단)
+```
+
+### DiceScene 컴포넌트
+- `useRef`로 canvas 엘리먼트 관리
+- `useEffect`에서 Three.js scene, renderer, physics 초기화
+- 기존 `dice3d.html`의 모든 로직 포함 (scene, camera, lighting, physics, dice, cup, animations)
+- `window.DiceGame` API 대신 React ref로 직접 제어
+- `embedded` 모드의 UI panel 불필요 — 별도 React 컴포넌트로 대체
+- cleanup에서 renderer.dispose(), physics world 정리
+
+### DiceScene API (ref로 노출)
+```typescript
+interface DiceSceneAPI {
+  setValues(v: number[]): void;
+  setHeld(h: boolean[]): void;
+  shake(): void;
+  roll(): void;
+  onResult(cb: (values: number[]) => void): void;
+}
+```
+- 기존 `window.DiceGame`과 동일한 인터페이스, useImperativeHandle로 노출
+
+### 화면 크기 문제 해결
+- iframe의 `max-h-[40vh]` 제한이 자연스럽게 제거됨
+- 캔버스가 전체 뷰포트를 채우므로 컵/주사위가 충분히 크게 보임
+- 카메라 FOV와 position은 기존 값 유지 (필요 시 조정)
+
+## 5. 주사위 보관함 UI (DiceTray)
 
 ### 레이아웃
-- 3D 주사위 영역(iframe) 바로 아래에 가로 5칸 트레이
-- 나무 질감 스타일 (갈색 그라디언트, 내부 그림자, border)
+- 화면 하단 중앙에 오버레이로 배치
+- 가로 5칸 트레이, 나무 질감 스타일 (갈색 그라디언트, 내부 그림자, border)
+- 3D 배경 위에 반투명하게 떠 있는 느낌
 
 ### 인터랙션
 - 주사위 결과 표시 후(rollCount > 0), 주사위 숫자 버튼 클릭 → 트레이 칸으로 이동 애니메이션
@@ -155,20 +207,9 @@ type GameSyncPayload struct {
 - 서버가 내부 held 상태 기반으로 held 주사위를 유지
 
 ### send 함수 전달
-- GamePage가 `send` prop을 DiceArea와 ScoreBoard에 전달
-- DiceArea: `send('game:hold', { index })` 호출
+- GamePage가 `send` prop을 DiceTray와 ScoreBoard에 전달
+- DiceTray: `send('game:hold', { index })` 호출
 - ScoreBoard: `send('game:hover', { category })` 호출
-
-## 5. 화면 크기 확대
-
-### 현재 문제
-- DiceArea: `max-h-[40vh]`로 제한, PC 브라우저에서 컵/주사위가 작게 보임
-
-### 변경
-- `max-h-[40vh]` 제거
-- 주사위 영역이 `flex-1`로 남은 공간을 채우도록 확장
-- `aspect-[16/9]` 유지하되 최대 높이 제한 완화 또는 제거
-- 점수판 사이드바는 `lg:w-80` 유지
 
 ## 6. 점수판 디자인 개선
 
@@ -220,7 +261,10 @@ type GameSyncPayload struct {
 - `client/src/hooks/useGameState.ts` — TOGGLE_HOLD 제거, GAME_HELD 추가, preview/hoveredCategory 상태 추가
 - `client/src/hooks/useWebSocket.ts` — 변경 없음
 - `client/src/App.tsx` — game:held, game:hovered 핸들러 등록
-- `client/src/components/DiceArea.tsx` — 트레이 UI 추가, send prop 받아 game:hold 전송
-- `client/src/components/ScoreBoard.tsx` — preview 표시, send prop 받아 game:hover 전송, 디자인 개선
-- `client/src/pages/GamePage.tsx` — 레이아웃 확대, 턴 표시 개선, send를 DiceArea/ScoreBoard에 전달
+- `client/src/components/DiceScene.tsx` — **새 파일**. dice3d.html의 Three.js+cannon-es 로직을 React 컴포넌트로 이전. 전체화면 캔버스 배경.
+- `client/src/components/DiceTray.tsx` — **새 파일**. 하단 중앙 오버레이 보관함 5칸, 나무 트레이 질감, hold 애니메이션.
+- `client/src/components/DiceArea.tsx` — 삭제 (DiceScene + DiceTray로 대체)
+- `client/src/components/ScoreBoard.tsx` — preview 표시, send prop 받아 game:hover 전송, 오버레이 스타일로 변경, 디자인 개선
+- `client/src/pages/GamePage.tsx` — 전체화면 3D 배경 + UI 오버레이 레이아웃, 턴 표시 개선
 - `client/src/i18n/*.json` — 필요 시 새 키 추가
+- `client/public/dice3d.html` — 보존 (standalone 테스트용), 변경 없음
