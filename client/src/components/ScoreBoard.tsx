@@ -7,7 +7,10 @@ interface Props {
   currentPlayer: string | null;
   myId: string | null;
   rollCount: number;
+  preview: Record<string, number>;
+  hoveredCategory: { category: string | null; playerId: string } | null;
   onSelectCategory?: (category: Category) => void;
+  onHoverCategory?: (category: string | null) => void;
 }
 
 function upperSum(playerScores: Record<string, number>): number {
@@ -20,20 +23,39 @@ function total(playerScores: Record<string, number>): number {
   return sum + bonus;
 }
 
-export default function ScoreBoard({ players, scores, currentPlayer, myId, rollCount, onSelectCategory }: Props) {
+export default function ScoreBoard({
+  players, scores, currentPlayer, myId, rollCount,
+  preview, hoveredCategory, onSelectCategory, onHoverCategory,
+}: Props) {
   const { t } = useTranslation();
   const isMyTurn = currentPlayer === myId;
   const myScores = myId ? (scores[myId] ?? {}) : {};
 
   const renderRow = (cat: Category) => {
     const canSelect = isMyTurn && rollCount > 0 && myScores[cat] === undefined;
+    const previewScore = preview[cat];
+    const isHovered = hoveredCategory?.category === cat;
+    const isOtherHover = isHovered && hoveredCategory?.playerId !== myId;
+    const isMyHover = isHovered && hoveredCategory?.playerId === myId;
+
     return (
-      <tr key={cat} className={canSelect ? 'hover:bg-white/10' : ''}>
-        <td className={`px-2 py-1 text-sm font-medium ${canSelect ? 'text-yellow-300' : 'text-gray-300'}`}>
+      <tr
+        key={cat}
+        className={`transition-colors ${
+          isMyHover ? 'bg-yellow-500/20' :
+          isOtherHover ? 'bg-blue-500/10' :
+          canSelect ? 'hover:bg-yellow-500/15' : ''
+        }`}
+        onMouseEnter={() => canSelect && onHoverCategory?.(cat)}
+        onMouseLeave={() => canSelect && onHoverCategory?.(null)}
+      >
+        <td className={`px-2 py-1.5 text-sm font-medium ${
+          canSelect ? 'text-yellow-300' : 'text-gray-400'
+        }`}>
           {canSelect ? (
             <button
               onClick={() => onSelectCategory?.(cat)}
-              className="w-full text-left text-yellow-300 hover:text-yellow-200 focus-visible:ring-2 focus-visible:ring-yellow-400 rounded"
+              className="w-full text-left text-yellow-300 hover:text-yellow-100 font-semibold focus-visible:ring-2 focus-visible:ring-yellow-400 rounded px-1 -mx-1"
             >
               {t(`categories.${cat}`)}
             </button>
@@ -41,23 +63,40 @@ export default function ScoreBoard({ players, scores, currentPlayer, myId, rollC
             t(`categories.${cat}`)
           )}
         </td>
-        {players.map(p => (
-          <td key={p.id} className={`px-2 py-1 text-center text-sm tabular-nums ${p.id === currentPlayer ? 'text-white font-bold' : 'text-gray-400'}`}>
-            {scores[p.id]?.[cat] !== undefined ? scores[p.id][cat] : '-'}
-          </td>
-        ))}
+        {players.map(p => {
+          const scored = scores[p.id]?.[cat];
+          const isPreview = scored === undefined && p.id === currentPlayer && previewScore !== undefined;
+          return (
+            <td
+              key={p.id}
+              className={`px-2 py-1.5 text-center text-sm tabular-nums ${
+                scored !== undefined
+                  ? p.id === currentPlayer ? 'text-white font-bold' : 'text-gray-400'
+                  : isPreview
+                    ? previewScore === 0
+                      ? 'text-yellow-500/15 italic'
+                      : 'text-yellow-500/40 italic'
+                    : 'text-gray-600'
+              }`}
+            >
+              {scored !== undefined ? scored : isPreview ? previewScore : '-'}
+            </td>
+          );
+        })}
       </tr>
     );
   };
 
   return (
-    <div className="bg-black/40 backdrop-blur rounded-xl p-3 overflow-auto max-h-[70vh]">
+    <div className="bg-black/50 backdrop-blur-md rounded-xl p-3 overflow-auto max-h-[80vh] border border-white/5">
       <table className="w-full border-collapse" aria-label={t('game.score')}>
         <thead>
           <tr>
             <th className="px-2 py-1 text-left text-xs text-gray-500">{t('game.score')}</th>
             {players.map(p => (
-              <th key={p.id} className={`px-2 py-1 text-center text-xs ${p.id === currentPlayer ? 'text-yellow-300' : 'text-gray-400'}`}>
+              <th key={p.id} className={`px-2 py-1 text-center text-xs transition-colors ${
+                p.id === currentPlayer ? 'text-yellow-300 font-bold' : 'text-gray-500'
+              }`}>
                 {p.nickname}{p.id === myId ? ' (me)' : ''}
               </th>
             ))}
