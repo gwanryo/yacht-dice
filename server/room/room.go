@@ -17,7 +17,7 @@ const MaxPlayers = 4
 
 type Room struct {
 	Code     string
-	Password string
+	password string
 	mu       sync.RWMutex
 	players  []*player.Player
 	hostID   string
@@ -26,6 +26,7 @@ type Room struct {
 	status   string
 	cleanup  *time.Timer
 	disconn  map[string]*time.Timer
+	rematch  map[string]bool
 }
 
 func GenerateCode() string {
@@ -41,10 +42,11 @@ func GenerateCode() string {
 func New(code, password string) *Room {
 	return &Room{
 		Code:     code,
-		Password: password,
+		password: password,
 		ready:    make(map[string]bool),
 		status:   "waiting",
 		disconn:  make(map[string]*time.Timer),
+		rematch:  make(map[string]bool),
 	}
 }
 
@@ -61,7 +63,11 @@ func (r *Room) PlayerCount() int {
 }
 
 func (r *Room) HasPassword() bool {
-	return r.Password != ""
+	return r.password != ""
+}
+
+func (r *Room) CheckPassword(pw string) bool {
+	return r.password == pw
 }
 
 func (r *Room) AddPlayer(p *player.Player) error {
@@ -152,29 +158,83 @@ func (r *Room) StartGame() []string {
 	return order
 }
 
-func (r *Room) Roll(playerID string, held []int) ([5]int, int, error) {
+// RollResult holds the atomically-captured result of a roll action.
+type RollResult struct {
+	Dice      [5]int
+	Held      [5]bool
+	RollCount int
+	Preview   map[string]int
+}
+
+func (r *Room) Roll(playerID string) (RollResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.engine == nil {
-		return [5]int{}, 0, fmt.Errorf("no game in progress")
+		return RollResult{}, fmt.Errorf("no game in progress")
 	}
-	dice, err := r.engine.Roll(playerID, held)
-	return dice, r.engine.RollCount(), err
+	dice, err := r.engine.Roll(playerID)
+	if err != nil {
+		return RollResult{}, err
+	}
+	return RollResult{
+		Dice:      dice,
+		Held:      r.engine.Held(),
+		RollCount: r.engine.RollCount(),
+		Preview:   r.engine.Preview(playerID),
+	}, nil
 }
 
-func (r *Room) Score(playerID string, category string) (int, error) {
+func (r *Room) Hold(playerID string, index int) ([5]bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.engine == nil {
-		return 0, fmt.Errorf("no game in progress")
+		return [5]bool{}, fmt.Errorf("no game in progress")
 	}
-	return r.engine.Score(playerID, category)
+	return r.engine.Hold(playerID, index)
 }
 
-func (r *Room) GameState() *game.Engine {
+// ScoreResult holds the atomically-captured result of a scoring action.
+type ScoreResult struct {
+	Score       int
+	TotalScores map[string]map[string]int
+	Finished    bool
+}
+
+func (r *Room) Score(playerID string, category string) (ScoreResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.engine == nil {
+		return ScoreResult{}, fmt.Errorf("no game in progress")
+	}
+	score, err := r.engine.Score(playerID, category)
+	if err != nil {
+		return ScoreResult{}, err
+	}
+	return ScoreResult{
+		Score:       score,
+		TotalScores: r.engine.Scores(),
+		Finished:    r.engine.IsFinished(),
+	}, nil
+}
+
+// TurnInfo returns the current player, round, and rollCount atomically.
+func (r *Room) TurnInfo() (currentPlayer string, round int, rollCount int, ok bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.engine
+	if r.engine == nil {
+		return "", 0, 0, false
+	}
+	return r.engine.CurrentPlayer(), r.engine.Round(), r.engine.RollCount(), true
+}
+
+// GameRankings returns the rankings under lock.
+func (r *Room) GameRankings() ([]message.RankEntry, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.engine == nil {
+		return nil, false
+	}
+	return r.engine.Rankings(), true
 }
 
 func (r *Room) IsFinished() bool {
@@ -186,16 +246,34 @@ func (r *Room) IsFinished() bool {
 func (r *Room) EndGame() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.status = "waiting"
-	r.engine = nil
+	r.status = "finished"
+	r.rematch = make(map[string]bool)
 }
 
-func (r *Room) Rematch(playerID string) {
+// Rematch records a player's rematch vote. Returns true if all players voted.
+func (r *Room) Rematch(playerID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.status = "waiting"
-	r.engine = nil
-	r.ready = make(map[string]bool)
+	r.rematch[playerID] = true
+	if len(r.rematch) >= len(r.players) {
+		r.status = "waiting"
+		r.engine = nil
+		r.ready = make(map[string]bool)
+		r.rematch = make(map[string]bool)
+		return true
+	}
+	return false
+}
+
+// RematchVotes returns IDs of players who voted for rematch.
+func (r *Room) RematchVotes() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	votes := make([]string, 0, len(r.rematch))
+	for pid := range r.rematch {
+		votes = append(votes, pid)
+	}
+	return votes
 }
 
 func (r *Room) StartRematchTimer(onTimeout func()) {
@@ -278,6 +356,10 @@ func (r *Room) SyncPayload() []byte {
 	if r.engine == nil {
 		return nil
 	}
+	var preview map[string]int
+	if r.engine.RollCount() > 0 {
+		preview = r.engine.Preview(r.engine.CurrentPlayer())
+	}
 	data, _ := message.New("game:sync", message.GameSyncPayload{
 		Dice:          r.engine.Dice(),
 		Held:          r.engine.Held(),
@@ -285,6 +367,7 @@ func (r *Room) SyncPayload() []byte {
 		Scores:        r.engine.Scores(),
 		CurrentPlayer: r.engine.CurrentPlayer(),
 		Round:         r.engine.Round(),
+		Preview:       preview,
 	})
 	return data
 }
@@ -295,7 +378,7 @@ func (r *Room) ListItem() message.RoomListItem {
 	return message.RoomListItem{
 		Code:        r.Code,
 		PlayerCount: len(r.players),
-		HasPassword: r.Password != "",
+		HasPassword: r.password != "",
 		Status:      r.status,
 	}
 }

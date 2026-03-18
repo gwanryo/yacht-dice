@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -15,7 +17,19 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		// Allow localhost for development
+		if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "https://localhost") {
+			return true
+		}
+		// In production, restrict to your domain(s) by setting AllowedOrigins
+		// For now, allow all origins (override in production)
+		return true
+	},
 }
 
 type WSHandler struct {
@@ -34,7 +48,10 @@ func (wh *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	nickname := r.URL.Query().Get("nickname")
+	nickname := strings.TrimSpace(r.URL.Query().Get("nickname"))
+	if utf8.RuneCountInString(nickname) > 20 {
+		nickname = string([]rune(nickname)[:20])
+	}
 	if nickname == "" {
 		nickname = "Player_" + uuid.New().String()[:4]
 	}
@@ -125,6 +142,10 @@ func (wh *WSHandler) handleMessage(p *player.Player, env message.Envelope) {
 		wh.handleStart(p)
 	case "game:roll":
 		wh.handleRoll(p, env.Payload)
+	case "game:hold":
+		wh.handleHold(p, env.Payload)
+	case "game:hover":
+		wh.handleHover(p, env.Payload)
 	case "game:score":
 		wh.handleScore(p, env.Payload)
 	case "game:rematch":
@@ -141,7 +162,13 @@ func (wh *WSHandler) sendError(p *player.Player, code, msg string) {
 
 func (wh *WSHandler) handleRoomCreate(p *player.Player, payload json.RawMessage) {
 	var req message.RoomCreatePayload
-	json.Unmarshal(payload, &req)
+	if err := json.Unmarshal(payload, &req); err != nil {
+		wh.sendError(p, message.ErrInvalidPayload, "Invalid payload")
+		return
+	}
+	if existing := wh.hub.PlayerRoom(p.ID); existing != nil {
+		wh.hub.LeaveRoom(p.ID)
+	}
 	rm := wh.hub.CreateRoom(req.Password)
 	wh.hub.JoinRoom(rm.Code, p)
 	data, _ := message.New("room:created", message.RoomCreatedPayload{RoomCode: rm.Code})
@@ -151,15 +178,21 @@ func (wh *WSHandler) handleRoomCreate(p *player.Player, payload json.RawMessage)
 
 func (wh *WSHandler) handleRoomJoin(p *player.Player, payload json.RawMessage) {
 	var req message.RoomJoinPayload
-	json.Unmarshal(payload, &req)
+	if err := json.Unmarshal(payload, &req); err != nil {
+		wh.sendError(p, message.ErrInvalidPayload, "Invalid payload")
+		return
+	}
 	rm := wh.hub.GetRoom(req.RoomCode)
 	if rm == nil {
 		wh.sendError(p, message.ErrRoomNotFound, "Room not found")
 		return
 	}
-	if rm.HasPassword() && rm.Password != req.Password {
+	if rm.HasPassword() && !rm.CheckPassword(req.Password) {
 		wh.sendError(p, message.ErrWrongPassword, "Wrong password")
 		return
+	}
+	if existing := wh.hub.PlayerRoom(p.ID); existing != nil {
+		wh.hub.LeaveRoom(p.ID)
 	}
 	if err := wh.hub.JoinRoom(req.RoomCode, p); err != nil {
 		wh.sendError(p, err.Error(), err.Error())
@@ -214,20 +247,50 @@ func (wh *WSHandler) handleRoll(p *player.Player, payload json.RawMessage) {
 	if rm == nil {
 		return
 	}
-	var req message.GameRollPayload
-	json.Unmarshal(payload, &req)
-	dice, rollCount, err := rm.Roll(p.ID, req.Held)
+	result, err := rm.Roll(p.ID)
 	if err != nil {
 		wh.sendError(p, err.Error(), err.Error())
 		return
 	}
-	var held [5]bool
-	for _, idx := range req.Held {
-		if idx >= 0 && idx < 5 {
-			held[idx] = true
-		}
+	data, _ := message.New("game:rolled", message.GameRolledPayload{
+		Dice: result.Dice, Held: result.Held, RollCount: result.RollCount, Preview: result.Preview,
+	})
+	rm.Broadcast(data)
+}
+
+func (wh *WSHandler) handleHold(p *player.Player, payload json.RawMessage) {
+	rm := wh.hub.PlayerRoom(p.ID)
+	if rm == nil {
+		return
 	}
-	data, _ := message.New("game:rolled", message.GameRolledPayload{Dice: dice, Held: held, RollCount: rollCount})
+	var req message.GameHoldPayload
+	if err := json.Unmarshal(payload, &req); err != nil {
+		wh.sendError(p, message.ErrInvalidPayload, "Invalid payload")
+		return
+	}
+	held, err := rm.Hold(p.ID, req.Index)
+	if err != nil {
+		wh.sendError(p, err.Error(), err.Error())
+		return
+	}
+	data, _ := message.New("game:held", message.GameHeldPayload{Held: held, PlayerID: p.ID})
+	rm.Broadcast(data)
+}
+
+func (wh *WSHandler) handleHover(p *player.Player, payload json.RawMessage) {
+	rm := wh.hub.PlayerRoom(p.ID)
+	if rm == nil {
+		return
+	}
+	var req message.GameHoverPayload
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return
+	}
+	currentPlayer, _, rollCount, ok := rm.TurnInfo()
+	if !ok || currentPlayer != p.ID || rollCount == 0 {
+		return
+	}
+	data, _ := message.New("game:hovered", message.GameHoveredPayload{Category: req.Category, PlayerID: p.ID})
 	rm.Broadcast(data)
 }
 
@@ -237,21 +300,20 @@ func (wh *WSHandler) handleScore(p *player.Player, payload json.RawMessage) {
 		return
 	}
 	var req message.GameScorePayload
-	json.Unmarshal(payload, &req)
-	engine := rm.GameState()
-	if engine == nil {
+	if err := json.Unmarshal(payload, &req); err != nil {
+		wh.sendError(p, message.ErrInvalidPayload, "Invalid payload")
 		return
 	}
-	score, err := rm.Score(p.ID, req.Category)
+	result, err := rm.Score(p.ID, req.Category)
 	if err != nil {
 		wh.sendError(p, err.Error(), err.Error())
 		return
 	}
 	data, _ := message.New("game:scored", message.GameScoredPayload{
-		PlayerID: p.ID, Category: req.Category, Score: score, TotalScores: engine.Scores(),
+		PlayerID: p.ID, Category: req.Category, Score: result.Score, TotalScores: result.TotalScores,
 	})
 	rm.Broadcast(data)
-	if rm.IsFinished() {
+	if result.Finished {
 		wh.endGame(rm)
 	} else {
 		wh.broadcastTurn(rm)
@@ -259,11 +321,10 @@ func (wh *WSHandler) handleScore(p *player.Player, payload json.RawMessage) {
 }
 
 func (wh *WSHandler) endGame(rm *room.Room) {
-	engine := rm.GameState()
-	if engine == nil {
+	rankings, ok := rm.GameRankings()
+	if !ok {
 		return
 	}
-	rankings := engine.Rankings()
 	nicks := rm.NicknameMap()
 	for i := range rankings {
 		rankings[i].Nickname = nicks[rankings[i].PlayerID]
@@ -277,12 +338,12 @@ func (wh *WSHandler) endGame(rm *room.Room) {
 }
 
 func (wh *WSHandler) broadcastTurn(rm *room.Room) {
-	engine := rm.GameState()
-	if engine == nil {
+	currentPlayer, round, _, ok := rm.TurnInfo()
+	if !ok {
 		return
 	}
 	data, _ := message.New("game:turn", message.GameTurnPayload{
-		CurrentPlayer: engine.CurrentPlayer(), Round: engine.Round(),
+		CurrentPlayer: currentPlayer, Round: round,
 	})
 	rm.Broadcast(data)
 }
@@ -293,8 +354,14 @@ func (wh *WSHandler) handleRematch(p *player.Player) {
 		return
 	}
 	rm.CancelRematchTimer()
-	rm.Rematch(p.ID)
-	rm.BroadcastState()
+	allVoted := rm.Rematch(p.ID)
+	if allVoted {
+		rm.BroadcastState()
+	} else {
+		votes := rm.RematchVotes()
+		data, _ := message.New("rematch:status", message.RematchStatusPayload{Votes: votes})
+		rm.Broadcast(data)
+	}
 }
 
 func (wh *WSHandler) handleReaction(p *player.Player, payload json.RawMessage) {
@@ -303,7 +370,10 @@ func (wh *WSHandler) handleReaction(p *player.Player, payload json.RawMessage) {
 		return
 	}
 	var req message.ReactionSendPayload
-	json.Unmarshal(payload, &req)
+	if err := json.Unmarshal(payload, &req); err != nil {
+		wh.sendError(p, message.ErrInvalidPayload, "Invalid payload")
+		return
+	}
 	data, _ := message.New("reaction:show", message.ReactionShowPayload{PlayerID: p.ID, Emoji: req.Emoji})
 	rm.Broadcast(data)
 }
