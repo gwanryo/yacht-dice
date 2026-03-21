@@ -34,16 +34,25 @@ func ValidCategory(cat string) bool {
 
 // validEmojis is the set of allowed reaction emojis.
 var validEmojis = map[string]bool{
-	"\U0001F44D": true, // thumbs up
-	"\U0001F44E": true, // thumbs down
-	"\U0001F602": true, // face with tears of joy
-	"\U0001F622": true, // crying face
-	"\U0001F621": true, // pouting face
-	"\U0001F60E": true, // smiling face with sunglasses
-	"\U0001F389": true, // party popper
-	"\U0001F525": true, // fire
-	"\U0001F4A9": true, // pile of poo
-	"\U0001F914": true, // thinking face
+	"\U0001F44D": true, // 👍 thumbs up
+	"\U0001F44E": true, // 👎 thumbs down
+	"\U0001F44F": true, // 👏 clapping hands
+	"\U0001F602": true, // 😂 face with tears of joy
+	"\U0001F622": true, // 😢 crying face
+	"\U0001F621": true, // 😡 pouting face
+	"\U0001F60E": true, // 😎 smiling face with sunglasses
+	"\U0001F631": true, // 😱 face screaming in fear
+	"\U0001F389": true, // 🎉 party popper
+	"\U0001F525": true, // 🔥 fire
+	"\U0001F480": true, // 💀 skull
+	"\U0001F62D": true, // 😭 loudly crying face
+	"\U0001F4A9": true, // 💩 pile of poo
+	"\U0001F914": true, // 🤔 thinking face
+}
+
+// ValidEmoji checks if the given string is an allowed reaction emoji.
+func ValidEmoji(emoji string) bool {
+	return validEmojis[emoji]
 }
 
 // ValidEmojis returns the set of allowed reaction emojis.

@@ -16,6 +16,9 @@ const sceneFallback = (
   <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-emerald-950 to-gray-950" style={{ zIndex: 0 }} />
 );
 
+// Ordered by score descending so the highest-value hand is announced first
+const SPECIAL_CATEGORIES: string[] = ['yacht', 'largeStraight', 'smallStraight', 'fullHouse', 'fourOfAKind'];
+
 interface Props {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
@@ -91,32 +94,30 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
     sceneRef.current?.onResult(handleSettled);
   }, [handleSettled]);
 
-  // #6: Trigger hand announcement on score selection
-  const handleScore = useCallback((category: Category) => {
-    const hand = isSpecialHand(state.dice, category);
-    if (hand) {
-      setAnnouncedHand(category);
-      setAnnouncedScore(hand.score);
+  // Auto-detect special hand when dice settle (both players see it)
+  useEffect(() => {
+    if (rollPhase !== 'settled' || state.dice.length !== 5) return;
+    // Check all special categories for a match
+    for (const cat of SPECIAL_CATEGORIES) {
+      const hand = isSpecialHand(state.dice, cat as Category);
+      if (hand) {
+        setAnnouncedHand(hand.category);
+        setAnnouncedScore(hand.score);
+        break; // Show only the best/first match
+      }
     }
+  }, [rollPhase, state.dice]);
+
+  const handleScore = useCallback((category: Category) => {
     send('game:score', { category });
     setRollPhase('idle');
-  }, [send, state.dice]);
+  }, [send]);
 
   const handleAnnouncementDone = useCallback(() => {
     setAnnouncedHand(null);
     setAnnouncedScore(undefined);
-  }, []);
-
-  // Remote player scored — show announcement if special hand with score > 0
-  useEffect(() => {
-    const scored = state.lastScored;
-    if (!scored || scored.playerId === playerId) return;
-    const SPECIAL: string[] = ['fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yacht'];
-    if (SPECIAL.includes(scored.category) && scored.score > 0) {
-      setAnnouncedHand(scored.category as Category);
-      setAnnouncedScore(scored.score);
-    }
-  }, [state.lastScored, playerId]);
+    dispatch({ type: 'CLEAR_LAST_SCORED' });
+  }, [dispatch]);
 
   const handleHold = useCallback((index: number) => {
     send('game:hold', { index });
@@ -133,6 +134,10 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
       send('game:hover', { category });
     }
   }, [send]);
+
+  useEffect(() => {
+    return () => clearTimeout(hoverTimerRef.current);
+  }, []);
 
   const handleReaction = useCallback((emoji: string) => {
     send('reaction:send', { emoji });
@@ -217,17 +222,17 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
               {rollPhase === 'shaking' ? t('game.rollDice') : rollPhase === 'rolling' ? t('game.rolling') : ''}
             </span>
             <div className="flex gap-4">
-              {rollPhase === 'shaking' && isMyTurn ? (
+              {!isMyTurn ? (
+                <Button variant="ghost" size="lg" disabled>
+                  {rollPhase === 'shaking' ? t('game.opponentShaking') : rollPhase === 'rolling' ? t('game.opponentRolled') : rollPhase === 'settled' ? t('game.opponentChoosing') : t('game.opponentTurn')}
+                </Button>
+              ) : rollPhase === 'shaking' ? (
                 <Button variant="success" size="lg" onClick={handleRoll}>
                   {t('game.rollDice')}
                 </Button>
               ) : rollPhase === 'rolling' ? (
                 <Button variant="ghost" size="lg" disabled>
                   {t('game.rolling')}
-                </Button>
-              ) : !isMyTurn ? (
-                <Button variant="ghost" size="lg" disabled>
-                  {t('game.opponentTurn')}
                 </Button>
               ) : state.rollCount >= 3 ? (
                 <Button variant="ghost" size="lg" disabled>

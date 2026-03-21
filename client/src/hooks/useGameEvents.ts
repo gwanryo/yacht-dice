@@ -14,12 +14,21 @@ export function useGameEvents(
   ws: WS,
   dispatch: Dispatch<GameAction>,
   setError: (error: string | null) => void,
+  getPhase: () => string,
 ) {
   const errorTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     const unsubs = [
       ws.on('room:state', (env) => {
+        // Only process room:state when already in room phase.
+        // Lobby entry is handled by LobbyPage (room:joined/room:created).
+        // Result/game phases should not be interrupted by room:state.
+        if (getPhase() !== 'room') return;
+        const p = env.payload as RoomState;
+        dispatch({ type: 'SET_ROOM_STATE', roomCode: p.roomCode, players: p.players });
+      }),
+      ws.on('rematch:start', (env) => {
         const p = env.payload as RoomState;
         dispatch({ type: 'SET_ROOM_STATE', roomCode: p.roomCode, players: p.players });
       }),
@@ -80,5 +89,5 @@ export function useGameEvents(
       unsubs.forEach(u => u());
       clearTimeout(errorTimerRef.current);
     };
-  }, [ws.on, dispatch, setError]);
+  }, [ws.on, dispatch, setError, getPhase]);
 }

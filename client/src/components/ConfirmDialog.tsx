@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
 import Button from './Button';
 
+const isDesktop = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(pointer: fine)').matches
+  : true;
+
 interface Props {
   open: boolean;
   message: string;
@@ -58,7 +62,7 @@ export default function ConfirmDialog({
       <div className="relative bg-black/70 backdrop-blur-md border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
         <p className="text-white text-center mb-6">{message}</p>
         <div className="flex gap-3">
-          <Button variant="ghost" onClick={onCancel} className="flex-1" autoFocus>
+          <Button variant="ghost" onClick={onCancel} className="flex-1" autoFocus={isDesktop}>
             {cancelLabel}
           </Button>
           <Button variant={variant === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} className="flex-1">

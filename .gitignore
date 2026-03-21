@@ -33,3 +33,4 @@ dist/
 *.exe
 yacht-server
 docs/*.png
+.vite/

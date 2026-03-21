@@ -16,7 +16,8 @@
     "waiting": "待機中",
     "playing": "プレイ中",
     "enterPassword": "ルームパスワードを入力してください",
-    "languageSelect": "言語選択"
+    "languageSelect": "言語選択",
+    "changeNickname": "変更"
   },
   "room": {
     "code": "ルームコード",
@@ -42,7 +43,10 @@
     "score": "スコア",
     "me": "(自分)",
     "selectScore": "スコアを選択してください",
-    "opponentTurn": "相手のターンです"
+    "opponentTurn": "相手のターンです",
+    "opponentShaking": "相手がシェイク中…",
+    "opponentRolled": "相手がダイスを投げました！",
+    "opponentChoosing": "相手が選択中…"
   },
   "categories": {
     "ones": "1", "twos": "2", "threes": "3",
@@ -55,12 +59,16 @@
     "title": "ゲーム結果",
     "rankLabel": "{{rank}}位",
     "rematch": "もう一度",
+    "opponentLeft": "相手が退出しました",
     "backToLobby": "ロビーへ"
   },
   "error": {
     "webglNotSupported": "お使いのブラウザはWebGLに対応していません",
     "somethingWentWrong": "問題が発生しました。",
-    "reloadPage": "ページを再読み込み"
+    "reloadPage": "ページを再読み込み",
+    "reconnecting": "再接続中\u2026",
+    "connectionLost": "接続が切れました。",
+    "retry": "再試行"
   },
   "aria": {
     "diceLabel": "サイコロ {{index}}: {{value}}",

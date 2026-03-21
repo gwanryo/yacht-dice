@@ -18,7 +18,7 @@ export function setupRenderer(canvas: HTMLCanvasElement): RendererSetup {
   scene.background = new THREE.Color(0x1a1a2e);
 
   const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 14, 5);
+  camera.position.set(0, isMobile ? 18 : 14, 5);
   camera.lookAt(0, 0, 0);
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });

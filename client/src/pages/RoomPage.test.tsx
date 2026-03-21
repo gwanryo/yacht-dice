@@ -42,6 +42,32 @@ describe('RoomPage', () => {
     vi.clearAllMocks();
   });
 
+  it('clears room param from URL when leaving room', () => {
+    window.history.replaceState({}, '', '?room=ABC123');
+    render(<RoomPage state={defaultState} dispatch={mockDispatch} send={mockSend} playerId="me" />);
+
+    // Click leave button
+    const leaveBtn = screen.getByText('room.leave');
+    fireEvent.click(leaveBtn);
+
+    // Confirm in dialog
+    const dialog = screen.getByRole('dialog');
+    const confirmBtn = Array.from(dialog.querySelectorAll('button')).find(
+      b => b.textContent === 'room.leave'
+    );
+    fireEvent.click(confirmBtn!);
+
+    expect(mockSend).toHaveBeenCalledWith('room:leave');
+    expect(mockDispatch).toHaveBeenCalledWith({ type: 'RESET_GAME' });
+
+    // URL should be cleared of room param
+    const url = new URL(window.location.href);
+    expect(url.searchParams.has('room')).toBe(false);
+
+    // Cleanup
+    window.history.replaceState({}, '', '/');
+  });
+
   it('copies room code and shows success icon on click', async () => {
     vi.mocked(copyToClipboard).mockResolvedValue(true);
     render(<RoomPage state={defaultState} dispatch={mockDispatch} send={mockSend} playerId="me" />);

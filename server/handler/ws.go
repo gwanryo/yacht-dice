@@ -381,7 +381,7 @@ func (wh *WSHandler) handleRoomCreate(p *player.Player, payload json.RawMessage)
 	}
 	rm := wh.hub.CreateRoom(req.Password)
 	wh.hub.JoinRoom(rm.Code, p)
-	data, _ := message.New("room:created", message.RoomCreatedPayload{RoomCode: rm.Code})
+	data, _ := message.New("room:created", rm.StatePayload())
 	p.Send(data)
 	rm.BroadcastState()
 }
@@ -408,7 +408,7 @@ func (wh *WSHandler) handleRoomJoin(p *player.Player, payload json.RawMessage) {
 		wh.sendError(p, err.Error(), err.Error())
 		return
 	}
-	data, _ := message.New("room:joined", message.RoomStatePayload{RoomCode: rm.Code})
+	data, _ := message.New("room:joined", rm.StatePayload())
 	p.Send(data)
 	joinData, _ := message.New("player:joined", message.PlayerInfo{ID: p.ID, Nickname: p.Nickname})
 	rm.Broadcast(joinData)
@@ -576,9 +576,15 @@ func (wh *WSHandler) handleRematch(p *player.Player) {
 	if rm == nil {
 		return
 	}
+	// Don't allow rematch with fewer than 2 players
+	if rm.PlayerCount() < 2 {
+		return
+	}
 	rm.CancelRematchTimer()
 	allVoted := rm.Rematch(p.ID)
 	if allVoted {
+		startData, _ := message.New("rematch:start", rm.StatePayload())
+		rm.Broadcast(startData)
 		rm.BroadcastState()
 	} else {
 		votes := rm.RematchVotes()
@@ -595,6 +601,9 @@ func (wh *WSHandler) handleReaction(p *player.Player, payload json.RawMessage) {
 	var req message.ReactionSendPayload
 	if err := json.Unmarshal(payload, &req); err != nil {
 		wh.sendError(p, message.ErrInvalidPayload, "Invalid payload")
+		return
+	}
+	if !message.ValidEmoji(req.Emoji) {
 		return
 	}
 	data, _ := message.New("reaction:show", message.ReactionShowPayload{PlayerID: p.ID, Emoji: req.Emoji})

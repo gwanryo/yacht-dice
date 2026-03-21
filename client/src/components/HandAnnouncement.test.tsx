@@ -34,7 +34,7 @@ describe('HandAnnouncement', () => {
     const onDone = vi.fn();
     render(<HandAnnouncement category="yacht" onDone={onDone} />);
     expect(onDone).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(2200); });
+    act(() => { vi.advanceTimersByTime(3600); });
     expect(onDone).toHaveBeenCalled();
   });
 

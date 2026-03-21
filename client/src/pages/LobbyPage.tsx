@@ -4,7 +4,7 @@ import PageLayout from '../components/PageLayout';
 import Button from '../components/Button';
 import { extractRoomCode } from '../utils/extractRoomCode';
 import type { GameAction, GameState } from '../hooks/useGameState';
-import type { Envelope } from '../types/game';
+import type { Envelope, PlayerInfo } from '../types/game';
 
 interface Props {
   state: GameState;
@@ -35,11 +35,19 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
 
   useEffect(() => {
     if (!nicknameConfirmed) return;
-    const unsub = on('room:created', (env: Envelope) => {
-      const p = env.payload as { roomCode: string };
-      dispatch({ type: 'SET_ROOM', roomCode: p.roomCode });
-    });
-    return unsub;
+    const handleRoomEntry = (env: Envelope) => {
+      const p = env.payload as { roomCode: string; players?: PlayerInfo[] };
+      if (p.players && p.players.length > 0) {
+        dispatch({ type: 'SET_ROOM_STATE', roomCode: p.roomCode, players: p.players });
+      } else {
+        dispatch({ type: 'SET_ROOM', roomCode: p.roomCode });
+      }
+    };
+    const unsubs = [
+      on('room:created', handleRoomEntry),
+      on('room:joined', handleRoomEntry),
+    ];
+    return () => unsubs.forEach(u => u());
   }, [on, dispatch, nicknameConfirmed]);
 
   // Auto-join room if URL contains ?room=XXXXX after nickname is confirmed
@@ -123,7 +131,15 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 mb-2 drop-shadow-lg">{t('app.title')}</h1>
-          <p className="text-gray-400 text-sm">{nickname}</p>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-gray-400 text-sm">{nickname}</p>
+            <button
+              onClick={() => dispatch({ type: 'CLEAR_NICKNAME' })}
+              className="text-xs text-white/40 hover:text-white/70 transition-colors focus-visible:ring-2 focus-visible:ring-white rounded px-1.5 py-0.5"
+            >
+              {t('lobby.changeNickname')}
+            </button>
+          </div>
         </div>
 
         <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 space-y-3 border border-white/10 shadow-2xl shadow-emerald-900/30">

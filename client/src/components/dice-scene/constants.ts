@@ -41,11 +41,16 @@ export const PRESENT_ROW: [number, number, number][] = [
   [-2.5, DICE_HALF, 3.5], [-1.25, DICE_HALF, 3.5], [0, DICE_HALF, 3.5], [1.25, DICE_HALF, 3.5], [2.5, DICE_HALF, 3.5],
 ];
 
+// Mobile needs higher camera to fit all 5 dice in narrow portrait viewport
+const _mobile = typeof navigator !== 'undefined' &&
+  (navigator.maxTouchPoints > 0 || (typeof window !== 'undefined' && window.innerWidth <= 768));
+const _yOff = _mobile ? 4 : 0;
+
 export const CAM_TARGETS: Record<string, { p: [number, number, number]; l: [number, number, number] }> = {
-  [S.IDLE]: { p: [0, 14, 5], l: [0, 0, 0] },
-  [S.COLLECT]: { p: [0, 12, 4], l: [0, 1, 0] },
-  [S.SHAKE]: { p: [2, LIFT_HEIGHT + 9, 5], l: [0, LIFT_HEIGHT, 0] },
-  [S.ROLL]: { p: [0, 14, 5], l: [0, 0, 0] },
-  [S.SETTLE]: { p: [0, 12, 5], l: [0, 0, 0] },
-  [S.RESULT]: { p: [0, 10, 4], l: [0, 0, 3.5] },
+  [S.IDLE]: { p: [0, 14 + _yOff, 5], l: [0, 0, 0] },
+  [S.COLLECT]: { p: [0, 12 + _yOff, 4], l: [0, 1, 0] },
+  [S.SHAKE]: { p: [2, LIFT_HEIGHT + 9 + _yOff, 5], l: [0, LIFT_HEIGHT, 0] },
+  [S.ROLL]: { p: [0, 14 + _yOff, 5], l: [0, 0, 0] },
+  [S.SETTLE]: { p: [0, 12 + _yOff, 5], l: [0, 0, 0] },
+  [S.RESULT]: { p: [0, 10 + _yOff, 4], l: [0, 0, 3.5] },
 };

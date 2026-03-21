@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useGameState } from './hooks/useGameState';
 import { useGameEvents } from './hooks/useGameEvents';
@@ -36,6 +37,7 @@ function LoadingFallback() {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [state, dispatch] = useGameState();
   const ws = useWebSocket(state.nickname);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +48,13 @@ export default function App() {
     ws.connect();
     return () => ws.disconnect();
   }, [state.nickname, ws.connect, ws.disconnect]);
+
+  // Reset to lobby if server restarted (new playerId = lost session)
+  useEffect(() => {
+    ws.onSessionReset(() => {
+      dispatch({ type: 'RESET_GAME' });
+    });
+  }, [ws.onSessionReset, dispatch]);
 
   // Sync room code to URL for sharing
   useEffect(() => {
@@ -68,7 +77,8 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [state.phase]);
 
-  useGameEvents(ws, dispatch, handleError);
+  const getPhase = useCallback(() => state.phase, [state.phase]);
+  useGameEvents(ws, dispatch, handleError, getPhase);
 
   // Focus main content when phase changes
   const pageRef = useRef<HTMLDivElement>(null);
@@ -100,17 +110,17 @@ export default function App() {
     <ErrorBoundary>
       {!ws.connected && state.nickname && !ws.connectionFailed && (
         <div className="fixed top-0 inset-x-0 z-50 bg-red-600/90 text-white text-center py-2 text-sm font-body animate-slide-down" role="alert" aria-live="polite">
-          Reconnecting\u2026
+          {t('error.reconnecting')}
         </div>
       )}
       {ws.connectionFailed && (
         <div className="fixed top-0 inset-x-0 z-50 bg-red-800/90 text-white text-center py-2 text-sm font-body flex items-center justify-center gap-3 animate-slide-down" role="alert" aria-live="polite">
-          <span>Connection lost.</span>
+          <span>{t('error.connectionLost')}</span>
           <button
             onClick={ws.reconnect}
             className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm transition-colors focus-visible:ring-2 focus-visible:ring-white"
           >
-            Retry
+            {t('error.retry')}
           </button>
         </div>
       )}

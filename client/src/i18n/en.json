@@ -16,7 +16,8 @@
     "waiting": "Waiting",
     "playing": "Playing",
     "enterPassword": "Enter room password",
-    "languageSelect": "Language"
+    "languageSelect": "Language",
+    "changeNickname": "Change"
   },
   "room": {
     "code": "Room Code",
@@ -42,7 +43,10 @@
     "score": "Score",
     "me": "(me)",
     "selectScore": "Select your score",
-    "opponentTurn": "Opponent's turn"
+    "opponentTurn": "Opponent's turn",
+    "opponentShaking": "Opponent is shaking…",
+    "opponentRolled": "Opponent rolled!",
+    "opponentChoosing": "Opponent is choosing…"
   },
   "categories": {
     "ones": "Ones", "twos": "Twos", "threes": "Threes",
@@ -55,12 +59,16 @@
     "title": "Game Results",
     "rankLabel": "{{rank}} Place",
     "rematch": "Rematch",
+    "opponentLeft": "Opponent Left",
     "backToLobby": "Back to Lobby"
   },
   "error": {
     "webglNotSupported": "Your browser does not support WebGL",
     "somethingWentWrong": "Something went wrong.",
-    "reloadPage": "Reload page"
+    "reloadPage": "Reload page",
+    "reconnecting": "Reconnecting\u2026",
+    "connectionLost": "Connection lost.",
+    "retry": "Retry"
   },
   "aria": {
     "diceLabel": "Dice {{index}}: {{value}}",

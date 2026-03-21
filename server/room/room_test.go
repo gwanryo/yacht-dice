@@ -535,6 +535,56 @@ func TestRemovePlayerClearsRematchVote(t *testing.T) {
 	}
 }
 
+func TestRematchWithSinglePlayerReturnsFalse(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	p2 := newMockPlayer("p2", "Bob")
+	rm.AddPlayer(p1)
+	rm.AddPlayer(p2)
+	rm.StartGame()
+	rm.EndGame()
+
+	// p2 leaves
+	rm.RemovePlayer("p2", func() {})
+
+	// p1 votes for rematch alone — should NOT trigger rematch start
+	allVoted := rm.Rematch("p1")
+	if allVoted {
+		t.Error("rematch should not start with only 1 player")
+	}
+
+	// Status should remain "finished", not "waiting"
+	if rm.Status() != "finished" {
+		t.Errorf("status = %s, want finished (rematch should not reset with 1 player)", rm.Status())
+	}
+}
+
+func TestRematchVotesAfterPlayerLeave(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	p2 := newMockPlayer("p2", "Bob")
+	rm.AddPlayer(p1)
+	rm.AddPlayer(p2)
+	rm.StartGame()
+	rm.EndGame()
+
+	// Both vote, but p1 leaves before p2 votes
+	rm.Rematch("p1")
+	rm.RemovePlayer("p1", func() {})
+
+	// After removal, only p2 remains but p1's vote is cleared
+	votes := rm.RematchVotes()
+	if len(votes) != 0 {
+		t.Errorf("expected 0 votes after leaving player's vote cleared, got %v", votes)
+	}
+
+	// p2 votes — alone, should not trigger rematch
+	allVoted := rm.Rematch("p2")
+	if allVoted {
+		t.Error("rematch should not start with only 1 player remaining")
+	}
+}
+
 func TestFindPlayer(t *testing.T) {
 	rm := New("TEST01", "")
 	p1 := newMockPlayer("p1", "Alice")

@@ -72,11 +72,17 @@ export default function ResultPage({ state, dispatch, send, playerId }: Props) {
   }, [revealed, state.rankings.length, state.rankings, formatRank]);
 
   const myVoted = playerId ? state.rematchVotes.includes(playerId) : false;
+  const canRematch = state.players.length >= 2;
 
   const [confirmLeave, setConfirmLeave] = useState(false);
 
   const handleLeave = () => {
     send('room:leave');
+    // Clear room code from URL synchronously before resetting state,
+    // so LobbyPage doesn't read a stale ?room= param and auto-rejoin.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    window.history.replaceState({}, '', url);
     dispatch({ type: 'RESET_GAME' });
   };
 
@@ -124,12 +130,14 @@ export default function ResultPage({ state, dispatch, send, playerId }: Props) {
         <div className="flex gap-3">
           <Button
             onClick={() => { send('game:rematch'); }}
-            disabled={myVoted}
+            disabled={myVoted || !canRematch}
             className="flex-1"
           >
-            {myVoted
-              ? `${t('result.rematch')} (${state.rematchVotes.length}/${state.players.length})`
-              : t('result.rematch')
+            {!canRematch
+              ? t('result.opponentLeft')
+              : myVoted
+                ? `${t('result.rematch')} (${state.rematchVotes.length}/${state.players.length})`
+                : t('result.rematch')
             }
           </Button>
           <Button variant="ghost" onClick={() => setConfirmLeave(true)} className="flex-1">

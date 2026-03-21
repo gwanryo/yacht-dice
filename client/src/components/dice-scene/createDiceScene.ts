@@ -315,8 +315,16 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
         diceBodies.forEach((b, i) => {
           if (heldDice[i]) return;
           b.type = CANNON.Body.DYNAMIC;
-          b.velocity.setZero();
-          b.angularVelocity.set((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+          b.velocity.set(
+            (Math.random() - 0.5) * 3,  // slight random X
+            -2,                           // downward
+            2 + Math.random() * 2        // forward push
+          );
+          b.angularVelocity.set(
+            (Math.random() - 0.5) * 4,
+            (Math.random() - 0.5) * 4,
+            (Math.random() - 0.5) * 4
+          );
         });
       }
     } else {

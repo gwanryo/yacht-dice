@@ -16,7 +16,8 @@
     "waiting": "대기 중",
     "playing": "게임 중",
     "enterPassword": "방 비밀번호를 입력하세요",
-    "languageSelect": "언어 선택"
+    "languageSelect": "언어 선택",
+    "changeNickname": "변경"
   },
   "room": {
     "code": "방 코드",
@@ -42,7 +43,10 @@
     "score": "점수",
     "me": "(나)",
     "selectScore": "점수를 선택하세요",
-    "opponentTurn": "상대 차례입니다"
+    "opponentTurn": "상대 차례입니다",
+    "opponentShaking": "상대가 주사위를 섞는 중…",
+    "opponentRolled": "상대가 주사위를 던졌습니다!",
+    "opponentChoosing": "상대가 점수를 고르는 중…"
   },
   "categories": {
     "ones": "1", "twos": "2", "threes": "3",
@@ -55,12 +59,16 @@
     "title": "게임 결과",
     "rankLabel": "{{rank}}등",
     "rematch": "다시하기",
+    "opponentLeft": "상대가 나갔습니다",
     "backToLobby": "로비로"
   },
   "error": {
     "webglNotSupported": "WebGL을 지원하지 않는 브라우저입니다",
     "somethingWentWrong": "문제가 발생했습니다.",
-    "reloadPage": "페이지 새로고침"
+    "reloadPage": "페이지 새로고침",
+    "reconnecting": "재연결 중\u2026",
+    "connectionLost": "연결이 끊어졌습니다.",
+    "retry": "재시도"
   },
   "aria": {
     "diceLabel": "주사위 {{index}}: {{value}}",

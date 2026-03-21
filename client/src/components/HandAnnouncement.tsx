@@ -39,12 +39,12 @@ export default function HandAnnouncement({ category, score, onDone }: Props) {
       return;
     }
     setPhase('enter');
-    const holdTimer = setTimeout(() => setPhase('hold'), 400);
-    const exitTimer = setTimeout(() => setPhase('exit'), 1600);
+    const holdTimer = setTimeout(() => setPhase('hold'), 500);
+    const exitTimer = setTimeout(() => setPhase('exit'), 3000);
     const doneTimer = setTimeout(() => {
       setPhase('done');
       onDone();
-    }, 2200);
+    }, 3600);
     return () => {
       clearTimeout(holdTimer);
       clearTimeout(exitTimer);
@@ -77,10 +77,9 @@ export default function HandAnnouncement({ category, score, onDone }: Props) {
         }}
       />
 
-      {/* Burst particles */}
-      {(tier === 'legendary' || tier === 'epic') && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          {PARTICLES.map((p, i) => (
+      {/* Burst particles — all tiers, normal uses fewer */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        {PARTICLES.filter((_, i) => tier !== 'normal' || i % 3 === 0).map((p, i) => (
             <div
               key={i}
               className="absolute rounded-full"
@@ -99,12 +98,11 @@ export default function HandAnnouncement({ category, score, onDone }: Props) {
               }}
             />
           ))}
-        </div>
-      )}
+      </div>
 
       {/* Hand name with glassmorphism panel */}
       <div
-        className={`relative text-center transition-all duration-400 ${
+        className={`relative text-center transition-[transform,opacity] duration-400 ${
           phase === 'enter' ? 'scale-[2] opacity-0' :
           phase === 'exit' ? 'scale-90 opacity-0 translate-y-4' :
           'scale-100 opacity-100'

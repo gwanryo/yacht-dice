@@ -1,6 +1,13 @@
-import { memo, useMemo, useState, useCallback, useEffect } from 'react';
+import { memo, useMemo, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UPPER_CATEGORIES, LOWER_CATEGORIES, type Category, type PlayerInfo } from '../types/game';
+
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T | undefined>(undefined);
+  const prev = ref.current;
+  ref.current = value;
+  return prev;
+}
 
 interface Props {
   players: PlayerInfo[];
@@ -33,10 +40,17 @@ export default memo(function ScoreBoard({
   const isMyTurn = currentPlayer === myId;
   const myScores = myId ? (scores[myId] ?? {}) : {};
 
-  // Local hover state for instant feedback (no network delay)
+  // Local hover state for instant feedback (no network delay).
+  // Only ONE category can be hovered at a time — entering a new row
+  // implicitly leaves the previous one.
   const [localHover, setLocalHover] = useState<string | null>(null);
 
-  // Sync local hover to network with debounce for leave only
+  // Clear local hover on turn change (rollCount resets to 0)
+  const prevRollCount = usePrevious(rollCount);
+  if (prevRollCount !== undefined && prevRollCount > 0 && rollCount === 0) {
+    if (localHover !== null) setLocalHover(null);
+  }
+
   const handleRowEnter = useCallback((cat: string) => {
     setLocalHover(cat);
     onHoverCategory?.(cat);
@@ -48,12 +62,9 @@ export default memo(function ScoreBoard({
   }, [onHoverCategory]);
 
   // #11: Mobile collapsible — auto-expand when dice results ready
-  const [mobileExpanded, setMobileExpanded] = useState(false);
   const shouldAutoExpand = rollCount > 0 && !minimized;
-
-  useEffect(() => {
-    setMobileExpanded(shouldAutoExpand);
-  }, [shouldAutoExpand]);
+  const [mobileOverride, setMobileOverride] = useState<boolean | null>(null);
+  const mobileExpanded = mobileOverride ?? shouldAutoExpand;
 
   // Cache per-player computed values to avoid redundant calculation
   const playerStats = useMemo(() => {
@@ -76,8 +87,8 @@ export default memo(function ScoreBoard({
     const previewScore = preview[cat];
     const isHovered = hoveredCategory?.category === cat;
     const isOtherHover = isHovered && hoveredCategory?.playerId !== myId;
-    // #2: Use local hover for instant feedback, remote hover for other player
-    const isMyHover = localHover === cat || (isHovered && hoveredCategory?.playerId === myId);
+    // Use localHover exclusively for own hover (avoids dual-highlight from stale server echo)
+    const isMyHover = localHover === cat;
 
     return (
       <tr
@@ -121,8 +132,8 @@ export default memo(function ScoreBoard({
                   ? p.id === currentPlayer ? 'text-white font-bold' : 'text-gray-400'
                   : isPreview
                     ? previewScore === 0
-                      ? 'text-yellow-500/30 italic'
-                      : 'text-yellow-400/70 italic font-semibold'
+                      ? isMyHover ? 'text-yellow-500/50 italic' : 'text-yellow-500/30 italic'
+                      : isMyHover ? 'text-yellow-300 italic font-bold' : 'text-yellow-400/70 italic font-semibold'
                     : 'text-gray-600'
               }`}
             >
@@ -165,7 +176,8 @@ export default memo(function ScoreBoard({
     <div className="lg:hidden">
       <button
         type="button"
-        onClick={() => setMobileExpanded(prev => !prev)}
+        onClick={() => setMobileOverride(prev => !(prev ?? shouldAutoExpand))}
+        aria-expanded={mobileExpanded}
         className="w-full bg-black/50 backdrop-blur-md rounded-xl px-4 py-2.5 border border-white/10 flex items-center justify-between"
       >
         <div className="flex gap-4 items-center">

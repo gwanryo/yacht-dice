@@ -29,6 +29,9 @@ export default function RoomPage({ state, dispatch, send, playerId }: Props) {
   const handleLeave = () => setConfirmLeave(true);
   const doLeave = () => {
     send('room:leave');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    window.history.replaceState({}, '', url);
     dispatch({ type: 'RESET_GAME' });
   };
 

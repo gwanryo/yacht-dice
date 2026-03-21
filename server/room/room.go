@@ -127,7 +127,11 @@ func (r *Room) RemovePlayer(playerID string, onEmpty func()) {
 	if r.engine != nil {
 		r.engine.RemovePlayer(playerID)
 		if len(r.players) < 2 {
-			r.status = "waiting"
+			// Only reset to "waiting" during active game.
+			// In "finished" state, keep status so rematch logic works correctly.
+			if r.status == "playing" {
+				r.status = "waiting"
+			}
 			r.engine = nil
 		}
 	}
@@ -262,11 +266,12 @@ func (r *Room) EndGame() {
 }
 
 // Rematch records a player's rematch vote. Returns true if all players voted.
+// Requires at least 2 players to prevent solo rematch after other player leaves.
 func (r *Room) Rematch(playerID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.rematch[playerID] = true
-	if len(r.rematch) >= len(r.players) {
+	if len(r.players) >= 2 && len(r.rematch) >= len(r.players) {
 		r.status = "waiting"
 		r.engine = nil
 		r.ready = make(map[string]bool)
@@ -342,8 +347,9 @@ func (r *Room) Broadcast(data []byte) {
 	}
 }
 
-func (r *Room) BroadcastState() {
+func (r *Room) StatePayload() message.RoomStatePayload {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
 	players := make([]message.PlayerInfo, len(r.players))
 	for i, p := range r.players {
 		players[i] = message.PlayerInfo{
@@ -353,11 +359,15 @@ func (r *Room) BroadcastState() {
 			IsReady:  r.ready[p.ID],
 		}
 	}
-	r.mu.RUnlock()
-	data, _ := message.New("room:state", message.RoomStatePayload{
+	return message.RoomStatePayload{
 		RoomCode: r.Code,
 		Players:  players,
-	})
+	}
+}
+
+func (r *Room) BroadcastState() {
+	sp := r.StatePayload()
+	data, _ := message.New("room:state", sp)
 	r.Broadcast(data)
 }
 

@@ -42,7 +42,9 @@ export type GameAction =
   | { type: 'GAME_POUR' }
   | { type: 'REMOVE_PLAYER'; playerId: string }
   | { type: 'SET_REMATCH_VOTES'; votes: string[] }
-  | { type: 'RESET_GAME' };
+  | { type: 'RESET_GAME' }
+  | { type: 'CLEAR_NICKNAME' }
+  | { type: 'CLEAR_LAST_SCORED' };
 
 const EMPTY_HELD: boolean[] = [false, false, false, false, false];
 
@@ -83,7 +85,7 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'GAME_HELD':
       return { ...state, held: action.held };
     case 'SET_TURN':
-      return { ...state, currentPlayer: action.currentPlayer, round: action.round, rollCount: 0, held: EMPTY_HELD, dice: [], preview: {}, hoveredCategory: null, pourCount: 0, lastScored: null };
+      return { ...state, currentPlayer: action.currentPlayer, round: action.round, rollCount: 0, held: EMPTY_HELD, dice: [], preview: {}, hoveredCategory: null, pourCount: 0 };
     case 'SET_SCORES':
       return { ...state, scores: action.scores };
     case 'GAME_SCORED':
@@ -108,6 +110,10 @@ function reducer(state: GameState, action: GameAction): GameState {
       return { ...state, rematchVotes: action.votes };
     case 'RESET_GAME':
       return { ...initialState, nickname: state.nickname };
+    case 'CLEAR_NICKNAME':
+      return { ...initialState, nickname: '' };
+    case 'CLEAR_LAST_SCORED':
+      return { ...state, lastScored: null };
     default:
       return state;
   }

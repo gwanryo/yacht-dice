@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Envelope } from '../types/game';
 
 type MessageHandler = (env: Envelope) => void;
+type SessionResetHandler = () => void;
 
 export function useWebSocket(nickname: string) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -9,11 +10,13 @@ export function useWebSocket(nickname: string) {
   const [connectionFailed, setConnectionFailed] = useState(false);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const playerIdRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
   const nicknameRef = useRef(nickname);
   const handlersRef = useRef<Map<string, MessageHandler[]>>(new Map());
   const queueRef = useRef<string[]>([]);
   const retriesRef = useRef(0);
   const connectRef = useRef<(() => void) | null>(null);
+  const onSessionResetRef = useRef<SessionResetHandler | null>(null);
   const maxRetries = 5;
 
   useEffect(() => { nicknameRef.current = nickname; }, [nickname]);
@@ -30,7 +33,7 @@ export function useWebSocket(nickname: string) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     const params = new URLSearchParams({ nickname: nicknameRef.current });
-    if (playerIdRef.current) params.set('playerId', playerIdRef.current);
+    if (tokenRef.current) params.set('token', tokenRef.current);
     const url = `${protocol}//${host}/ws?${params}`;
 
     const ws = new WebSocket(url);
@@ -73,9 +76,17 @@ export function useWebSocket(nickname: string) {
       try {
         const envelope: Envelope = JSON.parse(event.data);
         if (envelope.type === 'connected') {
-          const payload = envelope.payload as { playerId: string };
+          const payload = envelope.payload as { playerId: string; token: string };
+          // Detect server restart: if we had a playerId and the new one differs,
+          // the server lost our session. Reset the client to lobby.
+          const hadPreviousSession = playerIdRef.current !== null;
+          const idChanged = hadPreviousSession && payload.playerId !== playerIdRef.current;
           setPlayerId(payload.playerId);
           playerIdRef.current = payload.playerId;
+          tokenRef.current = payload.token;
+          if (idChanged && onSessionResetRef.current) {
+            onSessionResetRef.current();
+          }
         }
         const handlers = handlersRef.current.get(envelope.type);
         if (handlers) {
@@ -130,5 +141,9 @@ export function useWebSocket(nickname: string) {
     connect();
   }, [connect]);
 
-  return { connect, disconnect, reconnect, send, on, connected, connectionFailed, playerId };
+  const onSessionReset = useCallback((handler: SessionResetHandler) => {
+    onSessionResetRef.current = handler;
+  }, []);
+
+  return { connect, disconnect, reconnect, send, on, connected, connectionFailed, playerId, onSessionReset };
 }

@@ -191,7 +191,7 @@ describe('useGameState', () => {
     expect(result.current[0].lastScored).toEqual({ playerId: 'p1', category: 'yacht', score: 50 });
   });
 
-  it('SET_TURN clears lastScored', () => {
+  it('SET_TURN preserves lastScored (cleared by CLEAR_LAST_SCORED after announcement)', () => {
     const { result } = renderHook(() => useGameState());
     act(() => {
       result.current[1]({
@@ -205,6 +205,11 @@ describe('useGameState', () => {
     expect(result.current[0].lastScored).not.toBeNull();
     act(() => {
       result.current[1]({ type: 'SET_TURN', currentPlayer: 'p2', round: 2 });
+    });
+    // lastScored survives SET_TURN so the announcement can display
+    expect(result.current[0].lastScored).not.toBeNull();
+    act(() => {
+      result.current[1]({ type: 'CLEAR_LAST_SCORED' });
     });
     expect(result.current[0].lastScored).toBeNull();
   });
