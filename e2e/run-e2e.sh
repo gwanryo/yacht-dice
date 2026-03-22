@@ -124,6 +124,12 @@ S2=$(snap2)
 # P2 should see opponent-related text (shaking/rolling/turn) since P1 acts first
 assert "P2 sees opponent status" "$S2" '상대|opponent|Opponent'
 
+# ── Test 4c: Hand announcement should NOT appear before roll settles ──
+echo -e "  ${CYAN}Checking hand announcement timing...${NC}"
+S=$(snap)
+# After game start (before any roll settles), no hand announcement categories should be visible
+assert_not "No hand announcement before roll" "$S" 'categories\.(yacht|largeStraight|smallStraight|fullHouse|fourOfAKind)'
+
 echo "  Playing..."
 play_full_game
 S=$(snap); S2=$(snap2)

@@ -135,7 +135,7 @@ describe('GamePage opponent status text', () => {
 describe('GamePage hand announcement', () => {
   beforeEach(() => { capturedOnResult = null; });
 
-  it('shows announcement on settle when dice form a special hand (my turn)', () => {
+  it('shows announcement on settle when dice form a special hand (my turn)', async () => {
     const { rerender } = render(
       <GamePage
         state={{ ...baseState, currentPlayer: 'me', rollCount: 0, dice: [] }}
@@ -155,11 +155,12 @@ describe('GamePage hand announcement', () => {
     act(() => {
       capturedOnResult?.([1, 2, 3, 4, 5]);
     });
+    await act(async () => { await Promise.resolve(); });
     // HandAnnouncement should render the category name (may appear in announcement + table)
     expect(screen.getAllByText('categories.largeStraight').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows announcement on settle for opponent too (both players see it)', () => {
+  it('shows announcement on settle for opponent too (both players see it)', async () => {
     const { rerender } = render(
       <GamePage state={baseState} dispatch={vi.fn()} send={vi.fn()} playerId="me" />,
     );
@@ -185,6 +186,7 @@ describe('GamePage hand announcement', () => {
     act(() => {
       capturedOnResult?.([6, 6, 6, 6, 6]);
     });
+    await act(async () => { await Promise.resolve(); });
     // Both players should see yacht announcement
     expect(screen.getAllByText('categories.yacht').length).toBeGreaterThanOrEqual(1);
   });
@@ -208,7 +210,7 @@ describe('GamePage hand announcement', () => {
 });
 
 describe('SPECIAL_CATEGORIES order', () => {
-  it('yacht (50pts) should be checked before smallStraight (30pts)', () => {
+  it('yacht (50pts) should be checked before smallStraight (30pts)', async () => {
     // Import the module to check constant order
     // We verify via the audit test, but also check behavior:
     // If dice are [1,2,3,4,5] — both largeStraight(40) and smallStraight(30) match.
@@ -230,6 +232,7 @@ describe('SPECIAL_CATEGORIES order', () => {
     act(() => {
       capturedOnResult?.([1, 2, 3, 4, 5]);
     });
+    await act(async () => { await Promise.resolve(); });
     // Should show largeStraight announcement (role="alert" contains the hand name)
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('categories.largeStraight');

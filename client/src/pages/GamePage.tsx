@@ -34,6 +34,8 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
   const prevPourRef = useRef(state.pourCount);
   const prevPlayerRef = useRef(state.currentPlayer);
   const sceneRef = useRef<DiceSceneAPI>(null);
+  const diceRef = useRef(state.dice);
+  diceRef.current = state.dice;
 
   // #6: Hand announcement state
   const [announcedHand, setAnnouncedHand] = useState<Category | null>(null);
@@ -65,6 +67,8 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
       setRollPhase('idle');
       prevRollCountRef.current = 0;
       prevPourRef.current = 0;
+      setAnnouncedHand(null);
+      setAnnouncedScore(undefined);
     }
 
     // Always sync held state
@@ -88,25 +92,25 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
 
   const handleSettled = useCallback(() => {
     setRollPhase('settled');
+    setAnnouncedHand(null);
+    setAnnouncedScore(undefined);
+    const dice = diceRef.current;
+    if (dice.length !== 5) return;
+    for (const cat of SPECIAL_CATEGORIES) {
+      const hand = isSpecialHand(dice, cat as Category);
+      if (hand) {
+        queueMicrotask(() => {
+          setAnnouncedHand(hand.category);
+          setAnnouncedScore(hand.score);
+        });
+        return;
+      }
+    }
   }, []);
 
   useEffect(() => {
     sceneRef.current?.onResult(handleSettled);
   }, [handleSettled]);
-
-  // Auto-detect special hand when dice settle (both players see it)
-  useEffect(() => {
-    if (rollPhase !== 'settled' || state.dice.length !== 5) return;
-    // Check all special categories for a match
-    for (const cat of SPECIAL_CATEGORIES) {
-      const hand = isSpecialHand(state.dice, cat as Category);
-      if (hand) {
-        setAnnouncedHand(hand.category);
-        setAnnouncedScore(hand.score);
-        break; // Show only the best/first match
-      }
-    }
-  }, [rollPhase, state.dice]);
 
   const handleScore = useCallback((category: Category) => {
     send('game:score', { category });

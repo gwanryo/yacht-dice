@@ -385,9 +385,10 @@ describe('Critical: Client emojis must all be valid on server', () => {
 describe('Critical: Hand announcement triggers on dice settle', () => {
   it('GamePage auto-detects special hands on settle', () => {
     const content = readFile('src/pages/GamePage.tsx');
+    // Hand detection lives inside handleSettled callback (not a separate useEffect)
     const hasSettleDetection =
-      content.includes("rollPhase !== 'settled'") && content.includes('isSpecialHand');
-    expect(hasSettleDetection, 'Must detect hands on rollPhase settled').toBe(true);
+      content.includes('handleSettled') && content.includes('isSpecialHand');
+    expect(hasSettleDetection, 'Must detect hands in handleSettled callback').toBe(true);
   });
 
   it('handleScore does NOT trigger announcement', () => {
