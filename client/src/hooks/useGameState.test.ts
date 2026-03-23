@@ -167,6 +167,8 @@ describe('useGameState', () => {
         currentPlayer: 'p1',
         round: 3,
         preview: { twos: 0 },
+        players: [{ id: 'p1', nickname: 'Alice', isHost: true, isReady: false }],
+        roomCode: 'ABC123',
       });
     });
     expect(result.current[0].phase).toBe('game');
@@ -339,12 +341,54 @@ describe('useGameState', () => {
           rankings: [{ playerId: 'p1', nickname: 'Alice', score: 100, rank: 1 }],
           scores: { p1: { ones: 3 } },
           rematchVotes: ['p1'],
+          players: [{ id: 'p1', nickname: 'Alice', isHost: true, isReady: false }],
+          roomCode: 'ABC123',
         });
       });
       expect(result.current[0].phase).toBe('result');
       expect(result.current[0].rankings).toHaveLength(1);
       expect(result.current[0].scores.p1.ones).toBe(3);
       expect(result.current[0].rematchVotes).toEqual(['p1']);
+    });
+
+    it('GAME_SYNC restores players and roomCode', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({
+          type: 'GAME_SYNC',
+          dice: [3, 3, 3, 4, 5],
+          held: [true, true, true, false, false],
+          rollCount: 2,
+          scores: { p1: { ones: 1 } },
+          currentPlayer: 'p1',
+          round: 3,
+          preview: { twos: 0 },
+          players: [{ id: 'p1', nickname: 'Alice', isHost: true, isReady: false }],
+          roomCode: 'XYZ789',
+        });
+      });
+      expect(result.current[0].phase).toBe('game');
+      expect(result.current[0].players).toHaveLength(1);
+      expect(result.current[0].players[0].nickname).toBe('Alice');
+      expect(result.current[0].roomCode).toBe('XYZ789');
+    });
+
+    it('RESULT_SYNC restores players and roomCode', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({
+          type: 'RESULT_SYNC',
+          rankings: [{ playerId: 'p1', nickname: 'Alice', score: 100, rank: 1 }],
+          scores: { p1: { ones: 3 } },
+          rematchVotes: [],
+          players: [{ id: 'p1', nickname: 'Alice', isHost: true, isReady: false }],
+          roomCode: 'SOLO01',
+        });
+      });
+      expect(result.current[0].phase).toBe('result');
+      expect(result.current[0].players).toHaveLength(1);
+      expect(result.current[0].players[0].id).toBe('p1');
+      expect(result.current[0].roomCode).toBe('SOLO01');
     });
   });
 });

@@ -199,16 +199,7 @@ func extractClientIP(r *http.Request) string {
 }
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true
-		}
-		if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "https://localhost") {
-			return true
-		}
-		return true
-	},
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 type WSHandler struct {
@@ -312,9 +303,9 @@ func (wh *WSHandler) handleDisconnect(p *player.Player) {
 	rm.Broadcast(data)
 
 	switch rm.Status() {
-	case "playing":
+	case room.StatusPlaying:
 		rm.HandleDisconnect(p.ID, func() {
-			shouldEnd := rm.PlayerCount() <= 2 && rm.Status() == "playing"
+			shouldEnd := rm.PlayerCount() <= 2 && rm.Status() == room.StatusPlaying
 			if shouldEnd {
 				wh.endGame(rm)
 			}
@@ -326,7 +317,7 @@ func (wh *WSHandler) handleDisconnect(p *player.Player) {
 				wh.broadcastTurn(rm)
 			}
 		})
-	case "finished":
+	case room.StatusFinished:
 		rm.HandleDisconnectWaiting(p.ID, func() {
 			rm.RemovePlayer(p.ID, func() { wh.hub.RemoveRoom(rm.Code) })
 			remData, _ := message.New("player:removed", message.PlayerEventPayload{PlayerID: p.ID})
@@ -582,10 +573,6 @@ func (wh *WSHandler) handlePour(p *player.Player) {
 func (wh *WSHandler) handleRematch(p *player.Player) {
 	rm := wh.hub.PlayerRoom(p.ID)
 	if rm == nil {
-		return
-	}
-	// Don't allow rematch with no players
-	if rm.PlayerCount() < 1 {
 		return
 	}
 	rm.CancelRematchTimer()

@@ -19,6 +19,10 @@ const (
 	emptyRoomTimeout  = 30 * time.Second
 	disconnectTimeout = 60 * time.Second
 	rematchTimeout    = 30 * time.Second
+
+	StatusWaiting  = "waiting"
+	StatusPlaying  = "playing"
+	StatusFinished = "finished"
 )
 
 type Room struct {
@@ -56,7 +60,7 @@ func New(code, password string) *Room {
 		Code:         code,
 		passwordHash: hash,
 		ready:        make(map[string]bool),
-		status:       "waiting",
+		status:       StatusWaiting,
 		disconn:      make(map[string]*time.Timer),
 		rematch:      make(map[string]bool),
 	}
@@ -85,7 +89,7 @@ func (r *Room) CheckPassword(pw string) bool {
 func (r *Room) AddPlayer(p *player.Player) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.status == "playing" {
+	if r.status == StatusPlaying {
 		return fmt.Errorf(message.ErrGameInProgress)
 	}
 	if len(r.players) >= MaxPlayers {
@@ -129,10 +133,10 @@ func (r *Room) RemovePlayer(playerID string, onEmpty func()) {
 	if r.engine != nil {
 		r.engine.RemovePlayer(playerID)
 		if len(r.players) < 2 {
-			// Only reset to "waiting" during active game.
-			// In "finished" state, keep status so rematch logic works correctly.
-			if r.status == "playing" {
-				r.status = "waiting"
+			// Only reset to waiting during active game.
+			// In finished state, keep status so rematch logic works correctly.
+			if r.status == StatusPlaying {
+				r.status = StatusWaiting
 			}
 			r.engine = nil
 		}
@@ -151,7 +155,7 @@ func (r *Room) ToggleReady(playerID string) {
 func (r *Room) CanStart(playerID string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if playerID != r.hostID || len(r.players) < 1 || r.status == "playing" {
+	if playerID != r.hostID || len(r.players) < 1 || r.status == StatusPlaying {
 		return false
 	}
 	for _, p := range r.players {
@@ -170,7 +174,7 @@ func (r *Room) StartGame() []string {
 		order[i] = p.ID
 	}
 	r.engine = game.NewEngine(order)
-	r.status = "playing"
+	r.status = StatusPlaying
 	r.ready = make(map[string]bool)
 	return order
 }
@@ -263,7 +267,7 @@ func (r *Room) IsFinished() bool {
 func (r *Room) EndGame(rankings []message.RankEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.status = "finished"
+	r.status = StatusFinished
 	r.rematch = make(map[string]bool)
 	r.lastRankings = rankings
 	if r.engine != nil {
@@ -278,7 +282,7 @@ func (r *Room) Rematch(playerID string) bool {
 	defer r.mu.Unlock()
 	r.rematch[playerID] = true
 	if len(r.players) >= 1 && len(r.rematch) >= len(r.players) {
-		r.status = "waiting"
+		r.status = StatusWaiting
 		r.engine = nil
 		r.ready = make(map[string]bool)
 		r.rematch = make(map[string]bool)
@@ -397,7 +401,7 @@ func (r *Room) SyncPayload() []byte {
 	defer r.mu.RUnlock()
 
 	switch r.status {
-	case "playing":
+	case StatusPlaying:
 		if r.engine == nil {
 			return nil
 		}
@@ -405,6 +409,7 @@ func (r *Room) SyncPayload() []byte {
 		if r.engine.RollCount() > 0 {
 			preview = r.engine.Preview(r.engine.CurrentPlayer())
 		}
+		sp := r.statePayloadLocked()
 		data, _ := message.New("game:sync", message.GameSyncPayload{
 			Dice:          r.engine.Dice(),
 			Held:          r.engine.Held(),
@@ -413,17 +418,22 @@ func (r *Room) SyncPayload() []byte {
 			CurrentPlayer: r.engine.CurrentPlayer(),
 			Round:         r.engine.Round(),
 			Preview:       preview,
+			Players:       sp.Players,
+			RoomCode:      sp.RoomCode,
 		})
 		return data
-	case "finished":
+	case StatusFinished:
 		votes := make([]string, 0, len(r.rematch))
 		for pid := range r.rematch {
 			votes = append(votes, pid)
 		}
+		sp := r.statePayloadLocked()
 		data, _ := message.New("result:sync", message.ResultSyncPayload{
 			Rankings:     r.lastRankings,
 			Scores:       r.lastScores,
 			RematchVotes: votes,
+			Players:      sp.Players,
+			RoomCode:     sp.RoomCode,
 		})
 		return data
 	default:

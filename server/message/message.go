@@ -153,6 +153,8 @@ type GameSyncPayload struct {
 	CurrentPlayer string                    `json:"currentPlayer"`
 	Round         int                       `json:"round"`
 	Preview       map[string]int            `json:"preview"`
+	Players       []PlayerInfo              `json:"players"`
+	RoomCode      string                    `json:"roomCode"`
 }
 type GameEndPayload struct {
 	Rankings []RankEntry `json:"rankings"`
@@ -167,6 +169,8 @@ type ResultSyncPayload struct {
 	Rankings     []RankEntry               `json:"rankings"`
 	Scores       map[string]map[string]int `json:"scores"`
 	RematchVotes []string                  `json:"rematchVotes"`
+	Players      []PlayerInfo              `json:"players"`
+	RoomCode     string                    `json:"roomCode"`
 }
 
 // Payloads: Rematch

@@ -40,12 +40,10 @@ export default memo(function ScoreBoard({
   const isMyTurn = currentPlayer === myId;
   const myScores = myId ? (scores[myId] ?? {}) : {};
 
-  // Local hover state for instant feedback (no network delay).
-  // Only ONE category can be hovered at a time — entering a new row
-  // implicitly leaves the previous one.
   const [localHover, setLocalHover] = useState<string | null>(null);
 
-  // Clear local hover on turn change (rollCount resets to 0)
+  // 렌더 중 동기 실행 (useEffect 아님): useEffect로 옮기면 브라우저 페인트 후
+  // 실행되어 턴 전환 시 1프레임 동안 이전 호버 하이라이트가 잔존함.
   const prevRollCount = usePrevious(rollCount);
   if (prevRollCount !== undefined && prevRollCount > 0 && rollCount === 0) {
     if (localHover !== null) setLocalHover(null);

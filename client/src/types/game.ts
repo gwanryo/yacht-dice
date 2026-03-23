@@ -59,6 +59,8 @@ export interface GameSyncPayload {
   currentPlayer: string;
   round: number;
   preview: Record<string, number>;
+  players: PlayerInfo[];
+  roomCode: string;
 }
 
 export interface RankEntry {
@@ -76,6 +78,8 @@ export interface ResultSyncPayload {
   rankings: RankEntry[];
   scores: Record<string, Record<string, number>>;
   rematchVotes: string[];
+  players: PlayerInfo[];
+  roomCode: string;
 }
 
 export interface ReactionShowPayload {

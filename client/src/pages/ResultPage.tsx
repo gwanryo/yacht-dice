@@ -4,14 +4,15 @@ import PageLayout from '../components/PageLayout';
 import Button from '../components/Button';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { saveHighScore } from '../utils/highScore';
+import { leaveRoom } from '../utils/leaveRoom';
+import { CELEBRATION_COLORS } from '../utils/constants';
 import type { GameState, GameAction } from '../hooks/useGameState';
 
-const CONFETTI_COLORS = ['#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 const CONFETTI_DATA = Array.from({ length: 60 }, (_, i) => ({
   left: `${Math.random() * 100}%`,
   delay: `${Math.random() * 2}s`,
   duration: `${2.5 + Math.random() * 2}s`,
-  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  color: CELEBRATION_COLORS[i % CELEBRATION_COLORS.length],
   rotation: `rotate(${Math.random() * 360}deg)`,
 }));
 
@@ -58,7 +59,9 @@ export default function ResultPage({ state, dispatch, send, playerId }: Props) {
 
   const isSolo = state.players.length === 1;
 
-  // High score tracking for solo mode
+  // useMemo (not useEffect): saveHighScore must run synchronously so the
+  // stagger-reveal effect on the same render already has the result.
+  // useEffect would leave highScoreResult null for one frame, breaking confetti timing.
   const highScoreResult = useMemo(() => {
     if (!isSolo || state.rankings.length === 0) return null;
     return saveHighScore(state.rankings[0].score);
@@ -87,19 +90,10 @@ export default function ResultPage({ state, dispatch, send, playerId }: Props) {
   }, [revealed, state.rankings.length, state.rankings, formatRank, isSolo, highScoreResult]);
 
   const myVoted = playerId ? state.rematchVotes.includes(playerId) : false;
-  const canRematch = state.players.length >= 1;
 
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const handleLeave = () => {
-    send('room:leave');
-    // Clear room code from URL synchronously before resetting state,
-    // so LobbyPage doesn't read a stale ?room= param and auto-rejoin.
-    const url = new URL(window.location.href);
-    url.searchParams.delete('room');
-    window.history.replaceState({}, '', url);
-    dispatch({ type: 'RESET_GAME' });
-  };
+  const handleLeave = () => leaveRoom(send, dispatch);
 
   const soloScore = isSolo && state.rankings.length > 0 ? state.rankings[0].score : 0;
 
@@ -171,10 +165,12 @@ export default function ResultPage({ state, dispatch, send, playerId }: Props) {
         <div className="flex gap-3">
           <Button
             onClick={() => { send('game:rematch'); }}
-            disabled={myVoted || !canRematch}
+            // canRematch: 플레이어가 0명이면 리매치 불가 — 상대 전원 퇴장 시
+            // 버튼이 무반응 no-op이 되는 것을 방지
+            disabled={myVoted || state.players.length < 1}
             className="flex-1"
           >
-            {!canRematch
+            {state.players.length < 1
               ? t('result.opponentLeft')
               : myVoted
                 ? `${t('result.rematch')} (${state.rematchVotes.length}/${state.players.length})`

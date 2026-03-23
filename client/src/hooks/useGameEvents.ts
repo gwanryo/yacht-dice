@@ -69,7 +69,7 @@ export function useGameEvents(
       }),
       ws.on('result:sync', (env) => {
         const p = env.payload as ResultSyncPayload;
-        dispatch({ type: 'RESULT_SYNC', rankings: p.rankings, scores: p.scores, rematchVotes: p.rematchVotes });
+        dispatch({ type: 'RESULT_SYNC', rankings: p.rankings, scores: p.scores, rematchVotes: p.rematchVotes, players: p.players, roomCode: p.roomCode });
       }),
       ws.on('game:end', (env) => {
         const p = env.payload as GameEndPayload;

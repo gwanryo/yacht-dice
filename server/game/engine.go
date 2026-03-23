@@ -133,7 +133,7 @@ func (e *Engine) advanceTurn() {
 	if e.turnIdx >= len(e.playerOrder) {
 		e.turnIdx = 0
 		e.round++
-		if e.round > len(AllCategories()) {
+		if e.round > len(categories) {
 			e.finished = true
 		}
 	}
@@ -163,7 +163,7 @@ func (e *Engine) RemovePlayer(playerID string) {
 		if e.turnIdx >= len(e.playerOrder) {
 			e.turnIdx = 0
 			e.round++
-			if e.round > len(AllCategories()) {
+			if e.round > len(categories) {
 				e.finished = true
 			}
 		}

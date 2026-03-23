@@ -96,13 +96,13 @@ export default function App() {
   const page = (() => {
     switch (state.phase) {
       case 'lobby':
-        return <Suspense fallback={<LoadingFallback />}><LobbyPage state={state} dispatch={dispatch} send={ws.send} on={ws.on} playerId={ws.playerId} /></Suspense>;
+        return <LobbyPage state={state} dispatch={dispatch} send={ws.send} on={ws.on} playerId={ws.playerId} />;
       case 'room':
-        return <Suspense fallback={<LoadingFallback />}><RoomPage state={state} dispatch={dispatch} send={ws.send} playerId={ws.playerId} /></Suspense>;
+        return <RoomPage state={state} dispatch={dispatch} send={ws.send} playerId={ws.playerId} />;
       case 'game':
-        return <Suspense fallback={<LoadingFallback />}><GamePage state={state} dispatch={dispatch} send={ws.send} playerId={ws.playerId} /></Suspense>;
+        return <GamePage state={state} dispatch={dispatch} send={ws.send} playerId={ws.playerId} />;
       case 'result':
-        return <Suspense fallback={<LoadingFallback />}><ResultPage state={state} dispatch={dispatch} send={ws.send} playerId={ws.playerId} /></Suspense>;
+        return <ResultPage state={state} dispatch={dispatch} send={ws.send} playerId={ws.playerId} />;
     }
   })();
 
@@ -129,9 +129,11 @@ export default function App() {
           {error}
         </div>
       )}
-      <div key={state.phase} ref={pageRef} tabIndex={-1} className="animate-fade-in outline-none">
-        {page}
-      </div>
+      <Suspense fallback={<LoadingFallback />}>
+        <div key={state.phase} ref={pageRef} tabIndex={-1} className="animate-fade-in outline-none">
+          {page}
+        </div>
+      </Suspense>
     </ErrorBoundary>
   );
 }

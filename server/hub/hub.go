@@ -101,9 +101,9 @@ func (h *Hub) LeaveRoom(playerID string) {
 
 func (h *Hub) PlayerRoom(playerID string) *room.Room {
 	h.mu.RLock()
+	defer h.mu.RUnlock()
 	code := h.roomOf[playerID]
-	h.mu.RUnlock()
-	return h.GetRoom(code)
+	return h.rooms[code]
 }
 
 func (h *Hub) ListRooms() []message.RoomListItem {

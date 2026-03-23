@@ -1,6 +1,6 @@
 import type { Category } from '../types/game';
 
-const SPECIAL_HANDS: Category[] = ['fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yacht'];
+export const SPECIAL_HANDS: Category[] = ['fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yacht'];
 
 export function calculateScore(dice: number[], category: Category): number {
   const counts = [0, 0, 0, 0, 0, 0, 0]; // index 0 unused

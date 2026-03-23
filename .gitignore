@@ -35,5 +35,5 @@ yacht-server
 docs/*.png
 .vite/
 docker-compose.prod.yml
-nginx/
+.nginx/
 deploy.sh

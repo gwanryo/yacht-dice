@@ -407,14 +407,12 @@ describe('Critical: Hand announcement triggers on dice settle', () => {
     expect(hasLastScoredEffect, 'lastScored effect must be removed to prevent double announcement').toBe(false);
   });
 
-  it('SPECIAL_CATEGORIES ordered by score descending', () => {
+  it('SPECIAL_CATEGORIES_DESC derived from SPECIAL_HANDS reversed', () => {
     const content = readFile('src/pages/GamePage.tsx');
-    const match = content.match(/const SPECIAL_CATEGORIES[^[]*\[([^\]]+)\]/);
-    if (match) {
-      const cats = match[1].replace(/'/g, '').split(',').map((s: string) => s.trim());
-      const expectedOrder = ['yacht', 'largeStraight', 'smallStraight', 'fullHouse', 'fourOfAKind'];
-      expect(cats, 'SPECIAL_CATEGORIES must be ordered yacht→fourOfAKind (score desc)').toEqual(expectedOrder);
-    }
+    expect(
+      content.includes('SPECIAL_CATEGORIES_DESC') && content.includes('SPECIAL_HANDS'),
+      'GamePage must derive SPECIAL_CATEGORIES_DESC from shared SPECIAL_HANDS'
+    ).toBe(true);
   });
 });
 

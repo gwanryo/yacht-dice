@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Category } from '../types/game';
-
-/** Categories that trigger a celebration announcement */
-const SPECIAL_HANDS: Category[] = ['fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yacht'];
+import { SPECIAL_HANDS } from '../utils/scoreCalculator';
+import { CELEBRATION_COLORS } from '../utils/constants';
 
 /** Tier determines visual intensity */
 function getTier(cat: Category): 'epic' | 'legendary' | 'normal' {
@@ -18,7 +17,7 @@ const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   distance: 80 + Math.random() * 120,
   size: 4 + Math.random() * 6,
   delay: Math.random() * 0.3,
-  color: ['#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'][i % 6],
+  color: CELEBRATION_COLORS[i % CELEBRATION_COLORS.length],
 }));
 
 interface Props {

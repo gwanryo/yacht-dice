@@ -10,14 +10,14 @@ import Button from '../components/Button';
 import ErrorBoundary from '../components/ErrorBoundary';
 import type { GameState, GameAction } from '../hooks/useGameState';
 import type { Category } from '../types/game';
-import { isSpecialHand } from '../utils/scoreCalculator';
+import { isSpecialHand, SPECIAL_HANDS } from '../utils/scoreCalculator';
 
 const sceneFallback = (
   <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-emerald-950 to-gray-950" style={{ zIndex: 0 }} />
 );
 
 // Ordered by score descending so the highest-value hand is announced first
-const SPECIAL_CATEGORIES: string[] = ['yacht', 'largeStraight', 'smallStraight', 'fullHouse', 'fourOfAKind'];
+const SPECIAL_CATEGORIES_DESC = [...SPECIAL_HANDS].reverse();
 
 interface Props {
   state: GameState;
@@ -96,8 +96,8 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
     setAnnouncedScore(undefined);
     const dice = diceRef.current;
     if (dice.length !== 5) return;
-    for (const cat of SPECIAL_CATEGORIES) {
-      const hand = isSpecialHand(dice, cat as Category);
+    for (const cat of SPECIAL_CATEGORIES_DESC) {
+      const hand = isSpecialHand(dice, cat);
       if (hand) {
         queueMicrotask(() => {
           setAnnouncedHand(hand.category);

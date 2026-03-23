@@ -17,7 +17,9 @@ export function getHighScore(): HighScoreEntry | null {
   }
 }
 
-export function saveHighScore(score: number): { isNewBest: boolean; previous: HighScoreEntry | null } {
+export type HighScoreResult = { isNewBest: boolean; previous: HighScoreEntry | null };
+
+export function saveHighScore(score: number): HighScoreResult {
   const previous = getHighScore();
   const isNewBest = !previous || score > previous.score;
   if (isNewBest) {

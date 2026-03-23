@@ -35,7 +35,7 @@ export type GameAction =
   | { type: 'SET_SCORES'; scores: Record<string, Record<string, number>> }
   | { type: 'GAME_SCORED'; playerId: string; category: string; score: number; scores: Record<string, Record<string, number>> }
   | { type: 'GAME_END'; rankings: RankEntry[] }
-  | { type: 'GAME_SYNC'; dice: number[]; held: boolean[]; rollCount: number; scores: Record<string, Record<string, number>>; currentPlayer: string; round: number; preview: Record<string, number> }
+  | { type: 'GAME_SYNC'; dice: number[]; held: boolean[]; rollCount: number; scores: Record<string, Record<string, number>>; currentPlayer: string; round: number; preview: Record<string, number>; players: PlayerInfo[]; roomCode: string }
   | { type: 'ADD_REACTION'; playerId: string; emoji: string }
   | { type: 'CLEAR_REACTION'; id: string }
   | { type: 'SET_HOVERED'; category: string | null; playerId: string }
@@ -46,7 +46,7 @@ export type GameAction =
   | { type: 'CLEAR_NICKNAME' }
   | { type: 'CLEAR_LAST_SCORED' }
   | { type: 'ROOM_SYNC'; roomCode: string; players: PlayerInfo[] }
-  | { type: 'RESULT_SYNC'; rankings: RankEntry[]; scores: Record<string, Record<string, number>>; rematchVotes: string[] };
+  | { type: 'RESULT_SYNC'; rankings: RankEntry[]; scores: Record<string, Record<string, number>>; rematchVotes: string[]; players: PlayerInfo[]; roomCode: string };
 
 const EMPTY_HELD: boolean[] = [false, false, false, false, false];
 
@@ -101,7 +101,7 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'GAME_END':
       return { ...state, phase: 'result', rankings: action.rankings };
     case 'GAME_SYNC':
-      return { ...state, dice: action.dice, held: action.held, rollCount: action.rollCount, scores: action.scores, currentPlayer: action.currentPlayer, round: action.round, phase: 'game', preview: action.preview ?? {} };
+      return { ...state, dice: action.dice, held: action.held, rollCount: action.rollCount, scores: action.scores, currentPlayer: action.currentPlayer, round: action.round, phase: 'game', preview: action.preview ?? {}, players: action.players, roomCode: action.roomCode };
     case 'SET_HOVERED':
       return { ...state, hoveredCategory: { category: action.category, playerId: action.playerId } };
     case 'ADD_REACTION': {
@@ -125,15 +125,15 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'ROOM_SYNC':
       return { ...state, phase: 'room', roomCode: action.roomCode, players: action.players };
     case 'RESULT_SYNC':
-      return { ...state, phase: 'result', rankings: action.rankings, scores: action.scores, rematchVotes: action.rematchVotes };
+      return { ...state, phase: 'result', rankings: action.rankings, scores: action.scores, rematchVotes: action.rematchVotes, players: action.players, roomCode: action.roomCode };
     default:
       return state;
   }
 }
 
-const STORAGE_KEY = 'yacht-nickname';
-const STORAGE_VERSION_KEY = 'yacht-storage-v';
-const STORAGE_VERSION = 1;
+export const NICKNAME_STORAGE_KEY = 'yacht-nickname';
+export const STORAGE_VERSION_KEY = 'yacht-storage-v';
+export const STORAGE_VERSION = 1;
 
 function getSavedNickname(): string {
   try {
@@ -142,13 +142,13 @@ function getSavedNickname(): string {
       // Defer storage writes to avoid side effects during render
       queueMicrotask(() => {
         try {
-          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(NICKNAME_STORAGE_KEY);
           localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_VERSION));
         } catch { /* quota exceeded */ }
       });
       return '';
     }
-    return localStorage.getItem(STORAGE_KEY) || '';
+    return localStorage.getItem(NICKNAME_STORAGE_KEY) || '';
   } catch { return ''; }
 }
 

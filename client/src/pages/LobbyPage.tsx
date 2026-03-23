@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import PageLayout from '../components/PageLayout';
 import Button from '../components/Button';
 import { extractRoomCode } from '../utils/extractRoomCode';
-import type { GameAction, GameState } from '../hooks/useGameState';
+import { NICKNAME_STORAGE_KEY, STORAGE_VERSION_KEY, STORAGE_VERSION, type GameAction, type GameState } from '../hooks/useGameState';
 import type { Envelope, PlayerInfo } from '../types/game';
 
 interface Props {
@@ -65,8 +65,8 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
     if (!trimmed) return;
     dispatch({ type: 'SET_NICKNAME', nickname: trimmed });
     try {
-      localStorage.setItem('yacht-nickname', trimmed);
-      localStorage.setItem('yacht-storage-v', '1');
+      localStorage.setItem(NICKNAME_STORAGE_KEY, trimmed);
+      localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_VERSION));
     } catch { /* quota exceeded or private browsing */ }
   };
 

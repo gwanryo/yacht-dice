@@ -4,6 +4,7 @@ import PageLayout from '../components/PageLayout';
 import Button from '../components/Button';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { copyToClipboard } from '../utils/clipboard';
+import { leaveRoom } from '../utils/leaveRoom';
 import type { GameState, GameAction } from '../hooks/useGameState';
 
 interface Props {
@@ -27,13 +28,7 @@ export default function RoomPage({ state, dispatch, send, playerId }: Props) {
   };
 
   const handleLeave = () => setConfirmLeave(true);
-  const doLeave = () => {
-    send('room:leave');
-    const url = new URL(window.location.href);
-    url.searchParams.delete('room');
-    window.history.replaceState({}, '', url);
-    dispatch({ type: 'RESET_GAME' });
-  };
+  const doLeave = () => leaveRoom(send, dispatch);
 
   return (
     <PageLayout phase="room">

@@ -39,7 +39,7 @@ func TestNew(t *testing.T) {
 	if rm.Code != "ABCD12" {
 		t.Errorf("code = %s, want ABCD12", rm.Code)
 	}
-	if rm.Status() != "waiting" {
+	if rm.Status() != StatusWaiting {
 		t.Errorf("status = %s, want waiting", rm.Status())
 	}
 	if rm.HasPassword() {
@@ -218,7 +218,7 @@ func TestStartGame(t *testing.T) {
 	if len(order) != 2 {
 		t.Fatalf("order len = %d, want 2", len(order))
 	}
-	if rm.Status() != "playing" {
+	if rm.Status() != StatusPlaying {
 		t.Errorf("status = %s, want playing", rm.Status())
 	}
 }
@@ -388,7 +388,7 @@ func TestRematch(t *testing.T) {
 	if !allVoted {
 		t.Error("all players should have voted")
 	}
-	if rm.Status() != "waiting" {
+	if rm.Status() != StatusWaiting {
 		t.Errorf("status = %s, want waiting after all voted", rm.Status())
 	}
 }
@@ -460,7 +460,7 @@ func TestListItem(t *testing.T) {
 	if !item.HasPassword {
 		t.Error("expected HasPassword to be true")
 	}
-	if item.Status != "waiting" {
+	if item.Status != StatusWaiting {
 		t.Errorf("status = %s, want waiting", item.Status)
 	}
 }
@@ -570,7 +570,7 @@ func TestRematchWithSinglePlayerAfterLeave(t *testing.T) {
 		t.Error("solo rematch should start with single remaining player")
 	}
 
-	if rm.Status() != "waiting" {
+	if rm.Status() != StatusWaiting {
 		t.Errorf("status = %s, want waiting after solo rematch", rm.Status())
 	}
 }
@@ -708,7 +708,7 @@ func TestSoloGameFullRound(t *testing.T) {
 	if len(order) != 1 || order[0] != "p1" {
 		t.Fatalf("order = %v, want [p1]", order)
 	}
-	if rm.Status() != "playing" {
+	if rm.Status() != StatusPlaying {
 		t.Fatalf("status = %s, want playing", rm.Status())
 	}
 
@@ -748,7 +748,7 @@ func TestSoloRematch(t *testing.T) {
 	if !allVoted {
 		t.Error("solo rematch should complete with single vote")
 	}
-	if rm.Status() != "waiting" {
+	if rm.Status() != StatusWaiting {
 		t.Errorf("status = %s, want waiting after solo rematch", rm.Status())
 	}
 }
@@ -773,5 +773,76 @@ func TestSyncPayloadPlaying(t *testing.T) {
 	}
 	if env.Type != "game:sync" {
 		t.Errorf("type = %s, want game:sync", env.Type)
+	}
+}
+
+func TestSyncPayloadPlayingIncludesPlayers(t *testing.T) {
+	rm := New("TEST05", "")
+	p1 := newMockPlayer("p1", "Alice")
+	rm.AddPlayer(p1)
+	rm.StartGame()
+
+	data := rm.SyncPayload()
+	if data == nil {
+		t.Fatal("SyncPayload should return data")
+	}
+	var env struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		t.Fatal(err)
+	}
+	var payload message.GameSyncPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Players) != 1 {
+		t.Errorf("players len = %d, want 1", len(payload.Players))
+	}
+	if payload.Players[0].ID != "p1" {
+		t.Errorf("player ID = %s, want p1", payload.Players[0].ID)
+	}
+	if payload.Players[0].Nickname != "Alice" {
+		t.Errorf("player nickname = %s, want Alice", payload.Players[0].Nickname)
+	}
+	if payload.RoomCode != "TEST05" {
+		t.Errorf("roomCode = %s, want TEST05", payload.RoomCode)
+	}
+}
+
+func TestSyncPayloadFinishedIncludesPlayers(t *testing.T) {
+	rm := New("TEST06", "")
+	p1 := newMockPlayer("p1", "Alice")
+	rm.AddPlayer(p1)
+	rm.StartGame()
+	rankings := []message.RankEntry{
+		{PlayerID: "p1", Nickname: "Alice", Score: 100, Rank: 1},
+	}
+	rm.EndGame(rankings)
+
+	data := rm.SyncPayload()
+	if data == nil {
+		t.Fatal("SyncPayload should return data")
+	}
+	var env struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		t.Fatal(err)
+	}
+	var payload message.ResultSyncPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Players) != 1 {
+		t.Errorf("players len = %d, want 1", len(payload.Players))
+	}
+	if payload.Players[0].ID != "p1" {
+		t.Errorf("player ID = %s, want p1", payload.Players[0].ID)
+	}
+	if payload.RoomCode != "TEST06" {
+		t.Errorf("roomCode = %s, want TEST06", payload.RoomCode)
 	}
 }
