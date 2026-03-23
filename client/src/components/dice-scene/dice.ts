@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { DICE_SIZE } from './constants';
 import { pipTex } from './textures';
 
@@ -30,11 +31,11 @@ export function readTopFace(quat: THREE.Quaternion): number {
   return best;
 }
 
-let sharedGeometry: THREE.BoxGeometry | null = null;
+let sharedGeometry: RoundedBoxGeometry | null = null;
 
 export function mkDie(): THREE.Mesh {
   if (!sharedGeometry) {
-    sharedGeometry = new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE);
+    sharedGeometry = new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 4, 0.06);
   }
   const ms = FACE_MAP.map(v => new THREE.MeshStandardMaterial({ map: pipTex(v), roughness: 0.4, metalness: 0.05, transparent: true }));
   const m = new THREE.Mesh(sharedGeometry, ms);

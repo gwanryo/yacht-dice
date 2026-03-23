@@ -32,15 +32,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-let boxGeoCallCount = 0;
+const mockGeo = { dispose: vi.fn() };
+let roundedBoxCallCount = 0;
+
+vi.mock('three/examples/jsm/geometries/RoundedBoxGeometry.js', () => ({
+  RoundedBoxGeometry: vi.fn().mockImplementation(function () {
+    roundedBoxCallCount++;
+    return mockGeo;
+  }),
+}));
 
 vi.mock('three', () => {
-  const mockGeo = { dispose: vi.fn() };
   return {
-    BoxGeometry: vi.fn().mockImplementation(function () {
-      boxGeoCallCount++;
-      return mockGeo;
-    }),
+    BoxGeometry: vi.fn().mockReturnValue(mockGeo),
     Mesh: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       this.castShadow = false;
       this.receiveShadow = false;
@@ -71,7 +75,7 @@ vi.mock('three', () => {
 
 describe('Dice geometry sharing (B4)', () => {
   beforeEach(() => {
-    boxGeoCallCount = 0;
+    roundedBoxCallCount = 0;
     vi.resetModules();
   });
 
@@ -84,11 +88,10 @@ describe('Dice geometry sharing (B4)', () => {
     mkDie();
     mkDie();
 
-    const THREE = await import('three');
-    // BoxGeometry should only be instantiated once (shared across all dice)
+    // RoundedBoxGeometry should only be instantiated once (shared across all dice)
     expect(
-      vi.mocked(THREE.BoxGeometry).mock.calls.length,
-      'BoxGeometry should be shared across all dice — only 1 instance needed'
+      roundedBoxCallCount,
+      'RoundedBoxGeometry should be shared across all dice — only 1 instance needed'
     ).toBe(1);
   });
 });

@@ -6,9 +6,6 @@ import {
   FADE_SPEED, COL_FLY, COL_STAGGER, LIFT_DUR,
   SLIDE_DUR, POUR_DUR, SETTLE_THRESH, PRESENT_DUR,
   DICE_INIT_POS, PRESENT_ROW, S,
-  SHAKE_SWIRL_SPEED, SHAKE_CIRCLE_R, SHAKE_CIRCLE_R_VAR,
-  SHAKE_TILT_BASE, SHAKE_TILT_VAR, SHAKE_BOUNCE_AMP,
-  SHAKE_NUDGE_INTERVAL, SHAKE_NUDGE_FORCE, SHAKE_NUDGE_LIFT,
   type State,
 } from './constants';
 import { createTable } from './table';
@@ -55,7 +52,7 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
     for (let i = 0; i < 5; i++) {
       const shouldHide = heldDice[i] && state !== S.IDLE && state !== S.PRESENT && state !== S.RESULT;
       const target = shouldHide ? 0 : 1;
-      const rate = shouldHide ? FADE_SPEED * 3 : FADE_SPEED;
+      const rate = shouldHide ? FADE_SPEED * 1.2 : FADE_SPEED;
       diceOpacity[i] += (target - diceOpacity[i]) * rate;
       if (Math.abs(diceOpacity[i] - target) < 0.01) diceOpacity[i] = target;
       const needsTransparency = diceOpacity[i] < 0.999;
@@ -240,20 +237,30 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
       return;
     }
 
-    // SHAKE phase — fast, exciting circular swirl with bounce
+    // SHAKE phase — multi-layered hand-shake motion
     const se = performance.now() - shakeStart;
-    const swirl = se * SHAKE_SWIRL_SPEED;
-    const circR = SHAKE_CIRCLE_R + Math.sin(se * 0.005) * SHAKE_CIRCLE_R_VAR;
+    const t = se * 0.001; // seconds
+    const baseFreq = 4.5; // Hz — natural hand shake speed
 
-    const px = Math.sin(swirl) * circR + Math.sin(swirl * 2.3 + 1) * 0.12;
-    const pz = Math.cos(swirl) * circR + Math.cos(swirl * 1.7 + 2) * 0.12;
+    // Multi-harmonic position: irregular figure-8 + noise
+    const px = Math.sin(t * baseFreq) * 0.55
+             + Math.sin(t * baseFreq * 1.73 + 0.5) * 0.20
+             + Math.sin(t * baseFreq * 3.1 + 2.1) * 0.08;
+    const pz = Math.cos(t * baseFreq * 0.87) * 0.45
+             + Math.cos(t * baseFreq * 2.3 + 1.3) * 0.15
+             + Math.sin(t * baseFreq * 4.7 + 0.7) * 0.06;
 
-    const tiltAmt = SHAKE_TILT_BASE + Math.sin(se * 0.007) * SHAKE_TILT_VAR;
-    const rx = -Math.sin(swirl) * tiltAmt;
-    const rz = Math.cos(swirl) * tiltAmt;
-    const ry = Math.sin(se * 0.006) * 0.12;
+    // Asymmetric bounce: quick snap up, gentle settle down
+    const bounceRaw = Math.sin(t * baseFreq * 2.1) * 0.5 + 0.5;
+    const bounceY = Math.pow(bounceRaw, 0.6) * 0.25
+                  + Math.abs(Math.sin(t * baseFreq * 3.3)) * 0.08;
 
-    const bounceY = Math.abs(Math.sin(swirl * 2.5)) * SHAKE_BOUNCE_AMP;
+    // Tilt follows velocity (inertia effect)
+    const rx = -Math.cos(t * baseFreq) * 0.28
+             - Math.cos(t * baseFreq * 1.73 + 0.5) * 0.12;
+    const rz = Math.sin(t * baseFreq * 0.87) * 0.22
+             + Math.sin(t * baseFreq * 2.3 + 1.3) * 0.08;
+    const ry = Math.sin(t * 2.1) * 0.10;
 
     cupBody.position.set(cupRestPos.x + px, LIFT_HEIGHT + bounceY, cupRestPos.z + pz);
     cupBody.quaternion.setFromEuler(rx, ry, rz);
@@ -268,18 +275,20 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
       b.applyForce(_extraG, b.position);
     });
 
-    // Nudge — scaled by active dice count so fewer dice get weaker impulses
+    // Nudge — more frequent, random direction, scaled by active count
     const activeDiceCount = diceBodies.reduce((n, _, i) => n + (heldDice[i] ? 0 : 1), 0);
     const nudgeScale = Math.min(activeDiceCount / 3, 1.0);
+    const nudgeInterval = 200 + Math.sin(t * 7.3) * 50;
 
-    if (se % SHAKE_NUDGE_INTERVAL < 17) {
+    if (se % nudgeInterval < 17) {
       diceBodies.forEach((b, i) => {
         if (heldDice[i]) return;
-        if (b.velocity.length() < 3) {
+        if (b.velocity.length() < 4) {
+          const angle = Math.random() * Math.PI * 2;
           _nudgeForce.set(
-            (Math.random() - 0.5) * SHAKE_NUDGE_FORCE * nudgeScale,
-            SHAKE_NUDGE_LIFT * nudgeScale * 0.5,
-            (Math.random() - 0.5) * SHAKE_NUDGE_FORCE * nudgeScale,
+            Math.cos(angle) * 0.3 * nudgeScale,
+            0.15 + Math.random() * 0.1,
+            Math.sin(angle) * 0.3 * nudgeScale,
           );
           b.applyImpulse(_nudgeForce, _nudgePoint);
         }
@@ -316,31 +325,59 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
   let settleStart = 0;
   let settleTargetCannonQ: CANNON.Quaternion[] = [];
 
-  /* ── Cup exit animation ── */
-  let cupExiting = false;
-  let cupExitStart = 0;
-  const CUP_EXIT_DUR = 450;
-  const cupExitFromPos = new THREE.Vector3();
-  const cupExitFromQ = new THREE.Quaternion();
+  /* ── Independent cup visual animation (runs after physics cup is removed) ── */
+  let cupPourActive = false;
+  let cupPourStart = 0;
+  const CUP_VISUAL_DUR = 900; // duration of reveal+exit after physics removal
 
-  function updateCupExit() {
-    if (!cupExiting) return;
-    const t = Math.min((performance.now() - cupExitStart) / CUP_EXIT_DUR, 1);
-    const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
-    cupGroup.position.lerpVectors(
-      cupExitFromPos,
-      cupExitFromPos.clone().add(new THREE.Vector3(-4, 3, 0)),
-      e,
-    );
-    cupGroup.quaternion.slerpQuaternions(
-      cupExitFromQ,
-      cupExitFromQ.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -0.4))),
-      e,
-    );
+  function setCupShadows(on: boolean) {
+    cupGroup.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) child.castShadow = on;
+    });
+  }
+
+  function updateCupVisual() {
+    if (!cupPourActive) return;
+    const t = Math.min((performance.now() - cupPourStart) / CUP_VISUAL_DUR, 1);
+    const pourX = cupRestPos.x - 3.5;
+    const pourZ = cupRestPos.z;
+
+    let tiltAngle: number;
+    let liftY: number;
+    let slideX: number;
+
+    if (t < 0.3) {
+      // Reveal: 100°→140°, rapid lift
+      const p = t / 0.3;
+      const ep = p * p;
+      tiltAngle = -(Math.PI * 0.56 + ep * Math.PI * 0.22);
+      liftY = ep * 6;
+      slideX = ep * -1.5;
+    } else {
+      // Exit: 140°→180°, accelerate out
+      const p = (t - 0.3) / 0.7;
+      const ep = p * p;
+      tiltAngle = -(Math.PI * 0.78 + ep * Math.PI * 0.22);
+      liftY = 6 + ep * 10;
+      slideX = -1.5 + ep * -3;
+    }
+
+    // Fade out shadow as cup lifts (shadow off once liftY > 2)
+    if (liftY > 2) setCupShadows(false);
+
+    // Clearance
+    const sinA = Math.sin(tiltAngle), cosA = Math.cos(tiltAngle);
+    const minY = Math.min(CUP_BR * sinA, -CUP_BR * sinA, CUP_TR * sinA + CUP_H * cosA, -CUP_TR * sinA + CUP_H * cosA);
+    const clearY = Math.max(0, -minY + 0.15);
+
+    cupGroup.position.set(pourX + slideX, clearY + liftY, pourZ);
+    cupGroup.quaternion.setFromEuler(new THREE.Euler(0, 0, tiltAngle));
+
     if (t >= 1) {
-      cupExiting = false;
+      cupPourActive = false;
       cupGroup.position.set(-8, 0, 0);
       cupGroup.quaternion.set(0, 0, 0, 1);
+      setCupShadows(true); // restore for next round
     }
   }
 
@@ -380,19 +417,26 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
       }
     } else {
       const t = Math.min(elapsed / POUR_DUR, 1);
-      const tiltE = 1 - Math.pow(1 - t, 3);
-      const tiltAngle = -tiltE * (Math.PI * 0.53);
-      const liftY = tiltE * 2.5;
-      const pourX = cupRestPos.x - 3.5, pourZ = cupRestPos.z;
-      cupBody.position.set(pourX, liftY, pourZ);
-      cupBody.quaternion.setFromEuler(0, 0, tiltAngle);
-      if (t >= 1) {
+      const pourX = cupRestPos.x - 3.5;
+      const pourZ = cupRestPos.z;
+
+      // Phase 1 (Spill): tilt and use physics cup
+      if (t < 0.35) {
+        const p = t / 0.35;
+        const ep = 1 - Math.pow(1 - p, 2);
+        const tiltAngle = -ep * (Math.PI * 0.56);
+        const sinA = Math.sin(tiltAngle), cosA = Math.cos(tiltAngle);
+        const minY = Math.min(CUP_BR * sinA, -CUP_BR * sinA, CUP_TR * sinA + CUP_H * cosA, -CUP_TR * sinA + CUP_H * cosA);
+        const clearY = Math.max(0, -minY + 0.15);
+        cupBody.position.set(pourX, clearY, pourZ);
+        cupBody.quaternion.setFromEuler(0, 0, tiltAngle);
+      }
+
+      // At 35%: remove physics cup, start settle, begin independent cup visual anim
+      if (t > 0.35 && (cupBody as CANNON.Body & { world: CANNON.World | null }).world) {
         world.removeBody(cupBody);
-        // Start cup exit animation instead of instant teleport
-        cupExiting = true;
-        cupExitStart = performance.now();
-        cupExitFromPos.copy(cupGroup.position);
-        cupExitFromQ.copy(cupGroup.quaternion);
+        cupPourStart = performance.now();
+        cupPourActive = true;
         settleStart = performance.now();
         settleTargetCannonQ = targetVals.map(val => {
           const yaw = Math.random() * Math.PI * 2;
@@ -575,9 +619,7 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
         diceMeshes[i].quaternion.copy(diceBodies[i].quaternion as unknown as THREE.Quaternion);
       }
     }
-    if (cupExiting) {
-      updateCupExit();
-    } else if ((cupBody as CANNON.Body & { world: CANNON.World | null }).world) {
+    if ((cupBody as CANNON.Body & { world: CANNON.World | null }).world) {
       cupGroup.position.copy(cupBody.position as unknown as THREE.Vector3);
       cupGroup.quaternion.copy(cupBody.quaternion as unknown as THREE.Quaternion);
     }
@@ -591,6 +633,8 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
       case S.SETTLE: updateSettle(); break;
       case S.PRESENT: updatePresent(); break;
     }
+    // Cup visual animation runs independently of state machine
+    updateCupVisual();
   }
 
   let lastFrameTime = performance.now();
