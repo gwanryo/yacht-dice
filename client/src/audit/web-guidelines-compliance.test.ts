@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,6 +11,19 @@ const CLIENT_ROOT = resolve(_dir, '../..');
 
 function readFile(relativePath: string): string {
   return readFileSync(resolve(CLIENT_ROOT, relativePath), 'utf-8');
+}
+
+function collectTsx(dir: string): string[] {
+  const results: string[] = [];
+  for (const entry of readdirSync(resolve(CLIENT_ROOT, dir), { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory() && !entry.name.includes('test') && !entry.name.includes('audit')) {
+      results.push(...collectTsx(rel));
+    } else if (entry.name.endsWith('.tsx') && !entry.name.includes('.test.')) {
+      results.push(rel);
+    }
+  }
+  return results;
 }
 
 describe('Web Guidelines: Accessibility', () => {
@@ -205,6 +218,36 @@ describe('Web Guidelines: Content', () => {
       };
       checkForThreeDots(parsed);
     }
+  });
+});
+
+describe('Web Guidelines: Content — no raw unicode escapes in JSX text', () => {
+  it('TSX files should not use \\uXXXX escapes in JSX text content (only in JS expressions)', () => {
+    const files = collectTsx('src/components').concat(collectTsx('src/pages'));
+    files.push('src/App.tsx');
+    const violations: string[] = [];
+
+    for (const file of files) {
+      if (!file.endsWith('.tsx')) continue;
+      const content = readFile(file);
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Skip comments and imports
+        if (line.trim().startsWith('//') || line.trim().startsWith('import') || line.trim().startsWith('*')) continue;
+        // Match >...text with \uXXXX...< pattern (JSX text content, not inside {})
+        // This detects unicode escapes between JSX tags that won't be interpreted
+        if (/>[^<{]*\\u[0-9a-fA-F]{4}[^<]*</.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+
+    expect(
+      violations.length,
+      `Found raw \\uXXXX escapes in JSX text (these render literally, not as Unicode):\n${violations.join('\n')}\n` +
+      'Use the actual character or wrap in {\'\\uXXXX\'} JS expression instead.'
+    ).toBe(0);
   });
 });
 

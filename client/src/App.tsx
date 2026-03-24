@@ -21,7 +21,7 @@ function LoadingFallback() {
         <div className="text-5xl font-display text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 animate-pulse drop-shadow-lg">
           Yacht Dice
         </div>
-        <div className="text-white/30 text-sm tracking-widest uppercase">Loading\u2026</div>
+        <div className="text-white/30 text-sm tracking-widest uppercase">Loading{'\u2026'}</div>
         <div className="flex gap-2">
           {[0, 1, 2, 3, 4].map(i => (
             <div

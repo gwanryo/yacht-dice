@@ -271,7 +271,7 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
     diceBodies.forEach((b, i) => {
       if (heldDice[i]) return;
       _extraG.copy(_cupDown);
-      _extraG.scale(b.mass * 9.82 * 0.7, _extraG);
+      _extraG.scale(b.mass * 9.82 * 1.5, _extraG);
       b.applyForce(_extraG, b.position);
     });
 
@@ -285,11 +285,13 @@ export function createDiceScene(canvas: HTMLCanvasElement) {
         if (heldDice[i]) return;
         if (b.velocity.length() < 4) {
           const angle = Math.random() * Math.PI * 2;
+          // Cup-local nudge: lateral only (no upward push), then rotate to world space
           _nudgeForce.set(
             Math.cos(angle) * 0.3 * nudgeScale,
-            0.15 + Math.random() * 0.1,
+            0,
             Math.sin(angle) * 0.3 * nudgeScale,
           );
+          cupBody.quaternion.vmult(_nudgeForce, _nudgeForce);
           b.applyImpulse(_nudgeForce, _nudgePoint);
         }
       });
