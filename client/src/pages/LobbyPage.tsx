@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import PageLayout from '../components/PageLayout';
 import Button from '../components/Button';
+import SettingsModal from '../components/SettingsModal';
 import { extractRoomCode } from '../utils/extractRoomCode';
 import { NICKNAME_STORAGE_KEY, STORAGE_VERSION_KEY, STORAGE_VERSION, type GameAction, type GameState } from '../hooks/useGameState';
 import type { Envelope, PlayerInfo } from '../types/game';
@@ -25,6 +26,7 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
   });
   const [password, setPassword] = useState('');
   const [createPassword, setCreatePassword] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const nicknameConfirmed = !!state.nickname;
   const urlRoomCode = useRef(() => {
     try {
@@ -79,6 +81,15 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
     }
   }, []);
 
+  const handleSettingsSave = useCallback((newNickname: string) => {
+    dispatch({ type: 'SET_NICKNAME', nickname: newNickname });
+    setNickname(newNickname);
+    try {
+      localStorage.setItem(NICKNAME_STORAGE_KEY, newNickname);
+      localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_VERSION));
+    } catch { /* quota exceeded or private browsing */ }
+  }, [dispatch]);
+
   const handleCreate = () => {
     send('room:create', { password: createPassword || undefined });
   };
@@ -131,15 +142,16 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 mb-2 drop-shadow-lg">{t('app.title')}</h1>
-          <div className="flex items-center justify-center gap-2">
-            <p className="text-gray-400 text-sm">{nickname}</p>
-            <button
-              onClick={() => dispatch({ type: 'CLEAR_NICKNAME' })}
-              className="text-xs text-white/40 hover:text-white/70 transition-colors focus-visible:ring-2 focus-visible:ring-white rounded px-1.5 py-0.5"
-            >
-              {t('lobby.changeNickname')}
-            </button>
-          </div>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="mx-auto flex items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.06] py-2 pl-5 pr-4 transition-[color,background-color,border-color] hover:border-white/15 hover:bg-white/10 group"
+            aria-label={t('lobby.settings')}
+          >
+            <span className="text-base font-medium text-white/80 transition-colors group-hover:text-white">{state.nickname}</span>
+            <svg className="h-4 w-4 text-white/30 transition-colors group-hover:text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M8.34 1.804A1 1 0 0 1 9.32 1h1.36a1 1 0 0 1 .98.804l.295 1.473c.497.144.971.342 1.416.587l1.25-.834a1 1 0 0 1 1.262.125l.962.962a1 1 0 0 1 .125 1.262l-.834 1.25c.245.445.443.919.587 1.416l1.473.294a1 1 0 0 1 .804.98v1.361a1 1 0 0 1-.804.98l-1.473.295a6.95 6.95 0 0 1-.587 1.416l.834 1.25a1 1 0 0 1-.125 1.262l-.962.962a1 1 0 0 1-1.262.125l-1.25-.834a6.953 6.953 0 0 1-1.416.587l-.294 1.473a1 1 0 0 1-.98.804H9.32a1 1 0 0 1-.98-.804l-.295-1.473a6.957 6.957 0 0 1-1.416-.587l-1.25.834a1 1 0 0 1-1.262-.125l-.962-.962a1 1 0 0 1-.125-1.262l.834-1.25a6.957 6.957 0 0 1-.587-1.416l-1.473-.294A1 1 0 0 1 1 10.68V9.32a1 1 0 0 1 .804-.98l1.473-.295c.144-.497.342-.971.587-1.416l-.834-1.25a1 1 0 0 1 .125-1.262l.962-.962A1 1 0 0 1 5.38 3.13l1.25.834a6.957 6.957 0 0 1 1.416-.587l.294-1.473ZM13 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" clipRule="evenodd" />
+            </svg>
+          </button>
         </div>
 
         <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 space-y-3 border border-white/10 shadow-2xl shadow-emerald-900/30">
@@ -175,6 +187,12 @@ export default function LobbyPage({ state, dispatch, send, on }: Props) {
         </form>
 
       </div>
+      <SettingsModal
+        open={settingsOpen}
+        nickname={state.nickname}
+        onSave={handleSettingsSave}
+        onClose={() => setSettingsOpen(false)}
+      />
     </PageLayout>
   );
 }

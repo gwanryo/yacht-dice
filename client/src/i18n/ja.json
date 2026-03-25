@@ -17,7 +17,10 @@
     "playing": "プレイ中",
     "enterPassword": "ルームパスワードを入力してください",
     "languageSelect": "言語選択",
-    "changeNickname": "変更"
+    "changeNickname": "変更",
+    "settings": "設定",
+    "language": "言語",
+    "done": "完了"
   },
   "room": {
     "code": "ルームコード",

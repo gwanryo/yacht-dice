@@ -17,7 +17,10 @@
     "playing": "게임 중",
     "enterPassword": "방 비밀번호를 입력하세요",
     "languageSelect": "언어 선택",
-    "changeNickname": "변경"
+    "changeNickname": "변경",
+    "settings": "설정",
+    "language": "언어",
+    "done": "확인"
   },
   "room": {
     "code": "방 코드",

@@ -155,31 +155,31 @@ describe('LobbyPage', () => {
     });
   });
 
-  describe('nickname change', () => {
-    it('shows change nickname button when nickname is confirmed', () => {
+  describe('settings', () => {
+    it('shows settings button when nickname is confirmed', () => {
       render(
         <LobbyPage state={nicknameConfirmedState} dispatch={mockDispatch} send={mockSend} on={mockOn} playerId="p1" />
       );
 
-      expect(screen.getByText('lobby.changeNickname')).toBeTruthy();
+      expect(screen.getByLabelText('lobby.settings')).toBeTruthy();
     });
 
-    it('dispatches CLEAR_NICKNAME when change button is clicked', () => {
+    it('opens settings modal when settings button is clicked', () => {
       render(
         <LobbyPage state={nicknameConfirmedState} dispatch={mockDispatch} send={mockSend} on={mockOn} playerId="p1" />
       );
 
-      fireEvent.click(screen.getByText('lobby.changeNickname'));
+      fireEvent.click(screen.getByLabelText('lobby.settings'));
 
-      expect(mockDispatch).toHaveBeenCalledWith({ type: 'CLEAR_NICKNAME' });
+      expect(screen.getByRole('dialog')).toBeTruthy();
     });
 
-    it('does not show change button before nickname is confirmed', () => {
+    it('does not show settings button before nickname is confirmed', () => {
       render(
         <LobbyPage state={noNicknameState} dispatch={mockDispatch} send={mockSend} on={mockOn} playerId="p1" />
       );
 
-      expect(screen.queryByText('lobby.changeNickname')).toBeNull();
+      expect(screen.queryByLabelText('lobby.settings')).toBeNull();
     });
   });
 
