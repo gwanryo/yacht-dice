@@ -351,6 +351,52 @@ describe('ScoreBoard', () => {
     });
   });
 
+  // Desktop always-visible scoreboard (lg: breakpoint overrides minimized)
+  describe('desktop always-visible scoreboard', () => {
+    it('minimized pill has lg: override classes to stay hidden on desktop when minimized', () => {
+      render(
+        <ScoreBoard {...defaultProps} minimized={true} />,
+      );
+
+      const region = screen.getByRole('region', { name: 'game.score' });
+      expect(region.className).toContain('lg:opacity-0');
+      expect(region.className).toContain('lg:scale-95');
+      expect(region.className).toContain('lg:pointer-events-none');
+      expect(region.className).toContain('lg:absolute');
+    });
+
+    it('minimized pill has no lg: override classes when not minimized', () => {
+      render(<ScoreBoard {...defaultProps} minimized={false} />);
+
+      const region = screen.getByRole('region', { name: 'game.score' });
+      expect(region.className).not.toContain('lg:opacity-0');
+    });
+
+    it('full table has lg: override classes to stay visible on desktop when minimized', () => {
+      render(
+        <ScoreBoard {...defaultProps} minimized={true} />,
+      );
+
+      const table = screen.getByRole('table', { name: 'game.score' });
+      const tableWrapper = table.closest('[class*="transition-[opacity,transform]"]')!;
+      expect(tableWrapper.className).toContain('lg:opacity-100');
+      expect(tableWrapper.className).toContain('lg:scale-100');
+      expect(tableWrapper.className).toContain('lg:pointer-events-auto');
+    });
+
+    it('full table has no lg: override classes when not minimized (already visible)', () => {
+      render(
+        <ScoreBoard {...defaultProps} minimized={false} />,
+      );
+
+      const table = screen.getByRole('table', { name: 'game.score' });
+      const tableWrapper = table.closest('[class*="transition-[opacity,transform]"]')!;
+      expect(tableWrapper.className).not.toContain('lg:opacity-100');
+      // Should have base opacity-100 instead
+      expect(tableWrapper.className).toContain('opacity-100');
+    });
+  });
+
   // Score computation display
   describe('score display', () => {
     it('displays upper bonus progress', () => {

@@ -150,7 +150,7 @@ export default memo(function ScoreBoard({
     <div
       className={`bg-black/50 backdrop-blur-md rounded-full px-5 py-2.5 border border-white/10 mx-auto w-fit
         transition-[opacity,transform] duration-300 ease-in-out
-        ${minimized ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none absolute'}`}
+        ${minimized ? 'opacity-100 scale-100 lg:opacity-0 lg:scale-95 lg:pointer-events-none lg:absolute' : 'opacity-0 scale-95 pointer-events-none absolute'}`}
       role="region" aria-label={t('game.score')}
     >
       <div className="flex gap-6 items-center">
@@ -208,7 +208,7 @@ export default memo(function ScoreBoard({
   // Full table view — always rendered, crossfade via opacity/transform
   const fullTable = (
     <div className={`transition-[opacity,transform] duration-300 ease-in-out
-      ${minimized ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
+      ${minimized ? 'opacity-0 scale-95 pointer-events-none lg:opacity-100 lg:scale-100 lg:pointer-events-auto' : 'opacity-100 scale-100'}`}
     >
       {mobileMinimizedPill}
       <div

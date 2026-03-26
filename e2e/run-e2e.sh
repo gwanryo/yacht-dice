@@ -267,6 +267,29 @@ echo "  $TABLE_CHECK"
 assert "5 table headers (1 label + 4 players)" "$TABLE_CHECK" 'HEADERS=5'
 assert "Table fits within container" "$TABLE_CHECK" 'OVERFLOWS=false'
 
+# ── Test 8b: Desktop — scoreboard stays visible during dice roll ──
+echo -e "  ${CYAN}Checking desktop scoreboard stays visible during roll...${NC}"
+# Play a turn partially: click Shake! but check scoreboard before selecting category
+S=$(snap)
+if echo "$S"|grep -q 'Shake!'; then
+  SHAKE_REF=$(_r "$(echo "$S"|grep 'Shake!'|head -1)")
+  [ -n "$SHAKE_REF" ] && ab click "$SHAKE_REF" >/dev/null 2>&1; sleep 1
+  S=$(snap)
+  ROLL_REF=$(_r "$(echo "$S"|grep '"Roll!"'|head -1)")
+  [ -n "$ROLL_REF" ] && ab click "$ROLL_REF" >/dev/null 2>&1; sleep 0.5
+  # During rolling animation, check if table is visible on desktop viewport
+  VISIBLE_CHECK=$(ab execute "
+    var table = document.querySelector('table[aria-label]');
+    if (!table) return 'NO_TABLE';
+    var wrapper = table.closest('[class*=\"transition-\"]');
+    if (!wrapper) return 'NO_WRAPPER';
+    var cls = wrapper.className;
+    var hasLgOverride = cls.includes('lg:opacity-100') || cls.includes('opacity-100');
+    return 'TABLE_VISIBLE=' + hasLgOverride;
+  ")
+  assert "Scoreboard table visible during roll (lg override)" "$VISIBLE_CHECK" 'TABLE_VISIBLE=true'
+fi
+
 # Cleanup extra sessions
 ab3 close 2>/dev/null||true; ab4 close 2>/dev/null||true
 
