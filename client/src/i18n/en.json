@@ -50,7 +50,25 @@
     "opponentTurn": "Opponent's turn",
     "opponentShaking": "Opponent is shaking…",
     "opponentRolled": "Opponent rolled!",
-    "opponentChoosing": "Opponent is choosing…"
+    "opponentChoosing": "Opponent is choosing…",
+    "paused": {
+      "title": "{{name}} has disconnected",
+      "subtitle": "Waiting for reconnection\u2026",
+      "remaining": "{{seconds}}s remaining"
+    },
+    "leave": {
+      "button": "Leave",
+      "confirm": {
+        "body": "Only your current score will count. You cannot rejoin."
+      },
+      "toast": {
+        "voluntary": "{{name}} left the game",
+        "timeout": "{{name}} was disconnected"
+      }
+    },
+    "result": {
+      "leftEarly": "Left early"
+    }
   },
   "categories": {
     "ones": "Ones", "twos": "Twos", "threes": "Threes",

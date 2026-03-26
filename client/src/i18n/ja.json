@@ -50,7 +50,25 @@
     "opponentTurn": "相手のターンです",
     "opponentShaking": "相手がシェイク中…",
     "opponentRolled": "相手がダイスを投げました！",
-    "opponentChoosing": "相手が選択中…"
+    "opponentChoosing": "相手が選択中…",
+    "paused": {
+      "title": "{{name}}さんの接続が切れました",
+      "subtitle": "再接続を待っています\u2026",
+      "remaining": "残り{{seconds}}秒"
+    },
+    "leave": {
+      "button": "退出",
+      "confirm": {
+        "body": "現在のスコアのみが記録され、復帰できません。"
+      },
+      "toast": {
+        "voluntary": "{{name}}さんがゲームを退出しました",
+        "timeout": "{{name}}さんの接続が切れて退出しました"
+      }
+    },
+    "result": {
+      "leftEarly": "途中退出"
+    }
   },
   "categories": {
     "ones": "1", "twos": "2", "threes": "3",

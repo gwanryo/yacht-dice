@@ -318,6 +318,111 @@ describe('useGameState', () => {
     });
   });
 
+  describe('disconnect and leave features', () => {
+    it('PLAYER_DISCONNECTED adds to disconnectedPlayers', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({ type: 'PLAYER_DISCONNECTED', playerId: 'p2' });
+      });
+      expect(result.current[0].disconnectedPlayers).toContain('p2');
+    });
+
+    it('PLAYER_RECONNECTED removes from disconnectedPlayers', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({ type: 'PLAYER_DISCONNECTED', playerId: 'p2' });
+        result.current[1]({ type: 'PLAYER_RECONNECTED', playerId: 'p2' });
+      });
+      expect(result.current[0].disconnectedPlayers).not.toContain('p2');
+    });
+
+    it('GAME_PAUSED sets pausedFor state', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({
+          type: 'GAME_PAUSED',
+          playerId: 'p2',
+          nickname: 'Bob',
+          expiresAt: 1711540860000,
+        });
+      });
+      expect(result.current[0].pausedFor).toEqual({
+        playerId: 'p2',
+        nickname: 'Bob',
+        expiresAt: 1711540860000,
+      });
+    });
+
+    it('GAME_RESUMED clears pausedFor', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({
+          type: 'GAME_PAUSED',
+          playerId: 'p2',
+          nickname: 'Bob',
+          expiresAt: 1711540860000,
+        });
+        result.current[1]({ type: 'GAME_RESUMED', playerId: 'p2' });
+      });
+      expect(result.current[0].pausedFor).toBeNull();
+    });
+
+    it('ADD_TOAST adds toast and REMOVE_TOAST removes it', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({ type: 'ADD_TOAST', id: 't1', nickname: 'Bob', reason: 'voluntary' });
+      });
+      expect(result.current[0].toasts).toHaveLength(1);
+      expect(result.current[0].toasts[0]).toEqual({ id: 't1', nickname: 'Bob', reason: 'voluntary' });
+      act(() => {
+        result.current[1]({ type: 'REMOVE_TOAST', id: 't1' });
+      });
+      expect(result.current[0].toasts).toHaveLength(0);
+    });
+
+    it('GAME_SYNC with pausedFor restores pause state', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({
+          type: 'GAME_SYNC',
+          dice: [1, 2, 3, 4, 5],
+          held: [false, false, false, false, false],
+          rollCount: 0,
+          scores: {},
+          currentPlayer: 'p2',
+          round: 1,
+          preview: {},
+          players: [
+            { id: 'p1', nickname: 'Alice', isHost: true, isReady: false },
+            { id: 'p2', nickname: 'Bob', isHost: false, isReady: false },
+          ],
+          roomCode: 'ABC123',
+          pausedFor: { playerId: 'p2', nickname: 'Bob', expiresAt: 1711540860000 },
+        });
+      });
+      expect(result.current[0].pausedFor).toEqual({
+        playerId: 'p2',
+        nickname: 'Bob',
+        expiresAt: 1711540860000,
+      });
+    });
+
+    it('RESET_GAME clears disconnect/pause/toast state', () => {
+      const { result } = renderHook(() => useGameState());
+      act(() => {
+        result.current[1]({ type: 'PLAYER_DISCONNECTED', playerId: 'p2' });
+        result.current[1]({ type: 'GAME_PAUSED', playerId: 'p2', nickname: 'Bob', expiresAt: 999 });
+        result.current[1]({ type: 'ADD_TOAST', id: 't1', nickname: 'Test', reason: 'voluntary' });
+      });
+      act(() => {
+        result.current[1]({ type: 'RESET_GAME' });
+      });
+      expect(result.current[0].disconnectedPlayers).toEqual([]);
+      expect(result.current[0].pausedFor).toBeNull();
+      expect(result.current[0].toasts).toEqual([]);
+    });
+  });
+
   describe('reconnection sync actions', () => {
     it('ROOM_SYNC restores room phase', () => {
       const { result } = renderHook(() => useGameState());

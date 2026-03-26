@@ -601,6 +601,139 @@ func TestRematchVotesAfterPlayerLeave(t *testing.T) {
 	}
 }
 
+func TestIsPlayerConnected(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	rm.AddPlayer(p1)
+	if rm.IsPlayerConnected("p1") {
+		t.Error("nil conn player should not be connected")
+	}
+	if rm.IsPlayerConnected("nonexistent") {
+		t.Error("nonexistent player should not be connected")
+	}
+}
+
+func TestRetirePlayerRoom(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	p2 := newMockPlayer("p2", "Bob")
+	p3 := newMockPlayer("p3", "Charlie")
+	rm.AddPlayer(p1)
+	rm.AddPlayer(p2)
+	rm.AddPlayer(p3)
+	rm.StartGame()
+	// p1's turn — retire p3 (not current)
+	result := rm.RetirePlayer("p3")
+	if !result.OK {
+		t.Fatal("retire should succeed")
+	}
+	if result.WasTurn {
+		t.Error("p3 was not current, wasTurn should be false")
+	}
+	if rm.PlayerCount() != 2 {
+		t.Errorf("player count = %d, want 2", rm.PlayerCount())
+	}
+}
+
+func TestRetirePlayerNoGame(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	rm.AddPlayer(p1)
+	result := rm.RetirePlayer("p1")
+	if result.OK {
+		t.Error("retire should fail when no game")
+	}
+}
+
+func TestRetirePlayerGameEndWhenOneLeft(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	p2 := newMockPlayer("p2", "Bob")
+	rm.AddPlayer(p1)
+	rm.AddPlayer(p2)
+	rm.StartGame()
+	rm.Roll("p1")
+	rm.Score("p1", "choice")
+	rm.Roll("p2")
+	rm.Score("p2", "choice")
+
+	result := rm.RetirePlayer("p1")
+	if !result.OK {
+		t.Fatal("retire should succeed")
+	}
+	if result.ActiveCount != 1 {
+		t.Errorf("activeCount = %d, want 1", result.ActiveCount)
+	}
+}
+
+func TestRetirePlayerSolo(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	rm.AddPlayer(p1)
+	rm.StartGame()
+	rm.Roll("p1")
+	rm.Score("p1", "choice")
+
+	result := rm.RetirePlayer("p1")
+	if !result.OK {
+		t.Fatal("retire should succeed")
+	}
+	if result.ActiveCount != 0 {
+		t.Errorf("activeCount = %d, want 0", result.ActiveCount)
+	}
+}
+
+func TestSetAndClearPausedFor(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	p2 := newMockPlayer("p2", "Bob")
+	rm.AddPlayer(p1)
+	rm.AddPlayer(p2)
+	rm.StartGame()
+
+	rm.SetPausedFor("p2", "Bob", 1711540860000)
+	pf := rm.GetPausedFor()
+	if pf == nil {
+		t.Fatal("pausedFor should not be nil")
+	}
+	if pf.PlayerID != "p2" {
+		t.Errorf("pausedFor.PlayerID = %s, want p2", pf.PlayerID)
+	}
+	if pf.ExpiresAt != 1711540860000 {
+		t.Errorf("pausedFor.ExpiresAt = %d, want 1711540860000", pf.ExpiresAt)
+	}
+
+	rm.ClearPausedFor()
+	if rm.GetPausedFor() != nil {
+		t.Error("pausedFor should be nil after clear")
+	}
+}
+
+func TestSyncPayloadIncludesPausedFor(t *testing.T) {
+	rm := New("TEST01", "")
+	p1 := newMockPlayer("p1", "Alice")
+	p2 := newMockPlayer("p2", "Bob")
+	rm.AddPlayer(p1)
+	rm.AddPlayer(p2)
+	rm.StartGame()
+
+	rm.SetPausedFor("p2", "Bob", 1711540860000)
+	data := rm.SyncPayload()
+	var env struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	json.Unmarshal(data, &env)
+	var payload message.GameSyncPayload
+	json.Unmarshal(env.Payload, &payload)
+	if payload.PausedFor == nil {
+		t.Fatal("SyncPayload should include pausedFor")
+	}
+	if payload.PausedFor.PlayerID != "p2" {
+		t.Errorf("pausedFor.playerId = %s, want p2", payload.PausedFor.PlayerID)
+	}
+}
+
 func TestFindPlayer(t *testing.T) {
 	rm := New("TEST01", "")
 	p1 := newMockPlayer("p1", "Alice")

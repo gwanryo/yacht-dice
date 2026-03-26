@@ -78,7 +78,8 @@ export default function App() {
   }, [state.phase]);
 
   const getPhase = useCallback(() => state.phase, [state.phase]);
-  useGameEvents(ws, dispatch, handleError, getPhase);
+  const getPlayerId = useCallback(() => ws.playerId, [ws.playerId]);
+  useGameEvents(ws, dispatch, handleError, getPhase, getPlayerId);
 
   // Focus main content when phase changes
   const pageRef = useRef<HTMLDivElement>(null);

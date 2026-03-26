@@ -161,6 +161,7 @@ export default function ResultPage({ state, dispatch, send, playerId }: Props) {
                 <span className="text-lg">{medals[i] ?? ''}</span>
                 <span className={`text-base font-bold truncate max-w-[6rem] ${i === 0 ? 'text-amber-200' : 'text-white'}`}>{r.nickname}</span>
                 <span className={`font-bold tabular-nums ${i === 0 ? 'text-amber-300' : 'text-white'}`}>{r.score}</span>
+                {r.leftEarly && <span className="text-gray-500 text-xs">({t('game.result.leftEarly')})</span>}
               </div>
             ))}
           </div>

@@ -75,6 +75,9 @@ const baseState = {
   pourCount: 0,
   rematchVotes: [],
   lastScored: null,
+  disconnectedPlayers: [],
+  pausedFor: null,
+  toasts: [],
 };
 
 describe('DiceTray dice flash bug', () => {

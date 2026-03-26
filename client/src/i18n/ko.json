@@ -50,7 +50,25 @@
     "opponentTurn": "상대 차례입니다",
     "opponentShaking": "상대가 주사위를 섞는 중…",
     "opponentRolled": "상대가 주사위를 던졌습니다!",
-    "opponentChoosing": "상대가 점수를 고르는 중…"
+    "opponentChoosing": "상대가 점수를 고르는 중…",
+    "paused": {
+      "title": "{{name}}님의 연결이 끊겼습니다",
+      "subtitle": "재연결 대기 중\u2026",
+      "remaining": "{{seconds}}초 남음"
+    },
+    "leave": {
+      "button": "나가기",
+      "confirm": {
+        "body": "현재까지의 점수만 인정되며 게임에 복귀할 수 없습니다."
+      },
+      "toast": {
+        "voluntary": "{{name}}님이 게임을 나갔습니다",
+        "timeout": "{{name}}님의 연결이 끊겨 퇴장되었습니다"
+      }
+    },
+    "result": {
+      "leftEarly": "중도 퇴장"
+    }
   },
   "categories": {
     "ones": "1", "twos": "2", "threes": "3",

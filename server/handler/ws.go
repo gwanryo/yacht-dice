@@ -248,6 +248,13 @@ func (wh *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rm := wh.hub.PlayerRoom(p.ID)
 		if rm != nil {
 			rm.HandleReconnect(p.ID)
+			// If game was paused for this player, resume
+			if pf := rm.GetPausedFor(); pf != nil && pf.PlayerID == p.ID {
+				rm.ClearPausedFor()
+				resumeData, _ := message.New("game:resumed", message.GameResumedPayload{PlayerID: p.ID})
+				rm.Broadcast(resumeData)
+				wh.broadcastTurn(rm)
+			}
 			rm.BroadcastState()
 			if syncData := rm.SyncPayload(); syncData != nil {
 				p.Send(syncData)
@@ -304,19 +311,13 @@ func (wh *WSHandler) handleDisconnect(p *player.Player) {
 
 	switch rm.Status() {
 	case room.StatusPlaying:
-		rm.HandleDisconnect(p.ID, func() {
-			shouldEnd := rm.PlayerCount() <= 2 && rm.Status() == room.StatusPlaying
-			if shouldEnd {
-				wh.endGame(rm)
-			}
-			rm.RemovePlayer(p.ID, func() { wh.hub.RemoveRoom(rm.Code) })
-			remData, _ := message.New("player:removed", message.PlayerEventPayload{PlayerID: p.ID})
-			rm.Broadcast(remData)
-			if !shouldEnd && rm.PlayerCount() >= 2 {
-				rm.BroadcastState()
-				wh.broadcastTurn(rm)
-			}
-		})
+		// During gameplay: don't start disconnect timer immediately.
+		// If it's the disconnected player's turn, start pause timer now.
+		// Otherwise, pause starts when their turn arrives via broadcastTurnOrPause.
+		currentPlayer, _, _, ok := rm.TurnInfo()
+		if ok && currentPlayer == p.ID {
+			wh.startPauseTimer(rm, p)
+		}
 	case room.StatusFinished:
 		rm.HandleDisconnectWaiting(p.ID, func() {
 			rm.RemovePlayer(p.ID, func() { wh.hub.RemoveRoom(rm.Code) })
@@ -326,7 +327,11 @@ func (wh *WSHandler) handleDisconnect(p *player.Player) {
 	default:
 		rm.HandleDisconnectWaiting(p.ID, func() {
 			wh.hub.LeaveRoom(p.ID)
-			leftData, _ := message.New("player:left", message.PlayerEventPayload{PlayerID: p.ID})
+			leftData, _ := message.New("player:left", message.PlayerLeftPayload{
+				PlayerID: p.ID,
+				Nickname: p.Nickname,
+				Reason:   "normal",
+			})
 			rm.Broadcast(leftData)
 			rm.BroadcastState()
 		})
@@ -357,6 +362,8 @@ func (wh *WSHandler) handleMessage(p *player.Player, env message.Envelope) {
 		wh.handleScore(p, env.Payload)
 	case "game:pour":
 		wh.handlePour(p)
+	case "game:leave":
+		wh.handleGameLeave(p)
 	case "game:rematch":
 		wh.handleRematch(p)
 	case "reaction:send":
@@ -420,7 +427,11 @@ func (wh *WSHandler) handleRoomLeave(p *player.Player) {
 		return
 	}
 	wh.hub.LeaveRoom(p.ID)
-	data, _ := message.New("player:left", message.PlayerEventPayload{PlayerID: p.ID})
+	data, _ := message.New("player:left", message.PlayerLeftPayload{
+		PlayerID: p.ID,
+		Nickname: p.Nickname,
+		Reason:   "normal",
+	})
 	rm.Broadcast(data)
 	rm.BroadcastState()
 }
@@ -525,7 +536,7 @@ func (wh *WSHandler) handleScore(p *player.Player, payload json.RawMessage) {
 	if result.Finished {
 		wh.endGame(rm)
 	} else {
-		wh.broadcastTurn(rm)
+		wh.broadcastTurnOrPause(rm)
 	}
 }
 
@@ -536,7 +547,11 @@ func (wh *WSHandler) endGame(rm *room.Room) {
 	}
 	nicks := rm.NicknameMap()
 	for i := range rankings {
-		rankings[i].Nickname = nicks[rankings[i].PlayerID]
+		// Only overwrite if the player is still in the room;
+		// left players already have Nickname set by Rankings().
+		if nick, ok := nicks[rankings[i].PlayerID]; ok {
+			rankings[i].Nickname = nick
+		}
 	}
 	data, _ := message.New("game:end", message.GameEndPayload{Rankings: rankings})
 	rm.Broadcast(data)
@@ -555,6 +570,93 @@ func (wh *WSHandler) broadcastTurn(rm *room.Room) {
 		CurrentPlayer: currentPlayer, Round: round,
 	})
 	rm.Broadcast(data)
+}
+
+func (wh *WSHandler) broadcastTurnOrPause(rm *room.Room) {
+	currentPlayer, round, _, ok := rm.TurnInfo()
+	if !ok {
+		return
+	}
+	if !rm.IsPlayerConnected(currentPlayer) {
+		p := rm.FindPlayer(currentPlayer)
+		if p != nil {
+			wh.startPauseTimer(rm, p)
+		}
+		return
+	}
+	data, _ := message.New("game:turn", message.GameTurnPayload{
+		CurrentPlayer: currentPlayer, Round: round,
+	})
+	rm.Broadcast(data)
+}
+
+func (wh *WSHandler) startPauseTimer(rm *room.Room, p *player.Player) {
+	expiresAt := time.Now().Add(room.DisconnectTimeout).UnixMilli()
+	rm.SetPausedFor(p.ID, p.Nickname, expiresAt)
+	pauseData, _ := message.New("game:paused", message.GamePausedPayload{
+		PlayerID:  p.ID,
+		Nickname:  p.Nickname,
+		ExpiresAt: expiresAt,
+	})
+	rm.Broadcast(pauseData)
+	rm.HandleDisconnect(p.ID, func() {
+		rm.ClearPausedFor()
+		nick := p.Nickname
+		result := rm.RetirePlayer(p.ID)
+		leftData, _ := message.New("player:left", message.PlayerLeftPayload{
+			PlayerID: p.ID,
+			Nickname: nick,
+			Reason:   "timeout",
+		})
+		rm.Broadcast(leftData)
+		if result.ActiveCount == 1 {
+			wh.endGame(rm)
+		} else if result.ActiveCount > 1 {
+			rm.BroadcastState()
+			wh.broadcastTurnOrPause(rm)
+		} else {
+			wh.hub.RemoveRoom(rm.Code)
+		}
+		wh.hub.RemovePlayerFull(p.ID)
+	})
+}
+
+func (wh *WSHandler) handleGameLeave(p *player.Player) {
+	rm := wh.hub.PlayerRoom(p.ID)
+	if rm == nil {
+		return
+	}
+	if rm.Status() != room.StatusPlaying {
+		return
+	}
+	result := rm.RetirePlayer(p.ID)
+	if !result.OK {
+		return
+	}
+	nick := p.Nickname
+	leftData, _ := message.New("player:left", message.PlayerLeftPayload{
+		PlayerID: p.ID,
+		Nickname: nick,
+		Reason:   "voluntary",
+	})
+	rm.Broadcast(leftData)
+	p.Send(leftData) // also send to the leaver (already removed from room)
+
+	if result.ActiveCount == 0 {
+		wh.hub.RemovePlayerFull(p.ID)
+		wh.hub.RemoveRoom(rm.Code)
+		return
+	}
+	if result.ActiveCount == 1 {
+		wh.endGame(rm)
+		wh.hub.RemovePlayerFull(p.ID)
+		return
+	}
+	rm.BroadcastState()
+	if result.WasTurn {
+		wh.broadcastTurnOrPause(rm)
+	}
+	wh.hub.RemovePlayerFull(p.ID)
 }
 
 func (wh *WSHandler) handlePour(p *player.Player) {

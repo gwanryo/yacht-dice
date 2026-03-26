@@ -52,6 +52,9 @@ const baseState = {
   pourCount: 0,
   rematchVotes: [],
   lastScored: null,
+  disconnectedPlayers: [],
+  pausedFor: null,
+  toasts: [],
 };
 
 describe('GamePage opponent status text', () => {

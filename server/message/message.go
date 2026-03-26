@@ -155,15 +155,17 @@ type GameSyncPayload struct {
 	Preview       map[string]int            `json:"preview"`
 	Players       []PlayerInfo              `json:"players"`
 	RoomCode      string                    `json:"roomCode"`
+	PausedFor     *GamePausedPayload        `json:"pausedFor,omitempty"`
 }
 type GameEndPayload struct {
 	Rankings []RankEntry `json:"rankings"`
 }
 type RankEntry struct {
-	PlayerID string `json:"playerId"`
-	Nickname string `json:"nickname"`
-	Score    int    `json:"score"`
-	Rank     int    `json:"rank"`
+	PlayerID  string `json:"playerId"`
+	Nickname  string `json:"nickname"`
+	Score     int    `json:"score"`
+	Rank      int    `json:"rank"`
+	LeftEarly bool   `json:"leftEarly"`
 }
 type ResultSyncPayload struct {
 	Rankings     []RankEntry               `json:"rankings"`
@@ -193,6 +195,19 @@ type ConnectedPayload struct {
 	Token    string `json:"token"`
 }
 type PlayerEventPayload struct {
+	PlayerID string `json:"playerId"`
+}
+type PlayerLeftPayload struct {
+	PlayerID string `json:"playerId"`
+	Nickname string `json:"nickname"`
+	Reason   string `json:"reason"`
+}
+type GamePausedPayload struct {
+	PlayerID  string `json:"playerId"`
+	Nickname  string `json:"nickname"`
+	ExpiresAt int64  `json:"expiresAt"`
+}
+type GameResumedPayload struct {
 	PlayerID string `json:"playerId"`
 }
 type ErrorPayload struct {

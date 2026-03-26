@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	MaxPlayers        = 4
-	emptyRoomTimeout  = 30 * time.Second
-	disconnectTimeout = 60 * time.Second
-	rematchTimeout    = 30 * time.Second
+	MaxPlayers         = 4
+	emptyRoomTimeout   = 30 * time.Second
+	DisconnectTimeout  = 60 * time.Second
+	rematchTimeout     = 30 * time.Second
 
 	StatusWaiting  = "waiting"
 	StatusPlaying  = "playing"
@@ -39,6 +39,7 @@ type Room struct {
 	rematch      map[string]bool
 	lastRankings []message.RankEntry
 	lastScores   map[string]map[string]int
+	pausedFor    *message.GamePausedPayload
 }
 
 func GenerateCode() string {
@@ -170,10 +171,13 @@ func (r *Room) StartGame() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	order := make([]string, len(r.players))
+	nicks := make(map[string]string)
 	for i, p := range r.players {
 		order[i] = p.ID
+		nicks[p.ID] = p.Nickname
 	}
 	r.engine = game.NewEngine(order)
+	r.engine.SetNicknames(nicks)
 	r.status = StatusPlaying
 	r.ready = make(map[string]bool)
 	return order
@@ -320,13 +324,88 @@ func (r *Room) CancelRematchTimer() {
 	}
 }
 
+type RetireResult struct {
+	OK          bool
+	WasTurn     bool
+	ActiveCount int
+}
+
+func (r *Room) RetirePlayer(playerID string) RetireResult {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.engine == nil {
+		return RetireResult{}
+	}
+	wasTurn := r.engine.RetirePlayer(playerID)
+	activeCount := len(r.engine.PlayerOrder())
+	idx := -1
+	for i, p := range r.players {
+		if p.ID == playerID {
+			idx = i
+			break
+		}
+	}
+	if idx != -1 {
+		r.players = append(r.players[:idx], r.players[idx+1:]...)
+	}
+	delete(r.ready, playerID)
+	delete(r.rematch, playerID)
+	if r.hostID == playerID && len(r.players) > 0 {
+		r.hostID = r.players[0].ID
+	}
+	if timer, ok := r.disconn[playerID]; ok {
+		timer.Stop()
+		delete(r.disconn, playerID)
+	}
+	if r.pausedFor != nil && r.pausedFor.PlayerID == playerID {
+		r.pausedFor = nil
+	}
+	if len(r.players) == 0 {
+		r.cleanup = time.AfterFunc(emptyRoomTimeout, func() {})
+	}
+	return RetireResult{OK: true, WasTurn: wasTurn, ActiveCount: activeCount}
+}
+
+func (r *Room) IsPlayerConnected(playerID string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, p := range r.players {
+		if p.ID == playerID {
+			return p.Connected()
+		}
+	}
+	return false
+}
+
+func (r *Room) SetPausedFor(playerID, nickname string, expiresAt int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pausedFor = &message.GamePausedPayload{
+		PlayerID:  playerID,
+		Nickname:  nickname,
+		ExpiresAt: expiresAt,
+	}
+}
+
+func (r *Room) GetPausedFor() *message.GamePausedPayload {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.pausedFor
+}
+
+func (r *Room) ClearPausedFor() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pausedFor = nil
+}
+
 func (r *Room) HandleDisconnect(playerID string, onTimeout func()) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if timer, ok := r.disconn[playerID]; ok {
 		timer.Stop()
 	}
-	r.disconn[playerID] = time.AfterFunc(disconnectTimeout, onTimeout)
+	r.disconn[playerID] = time.AfterFunc(DisconnectTimeout, onTimeout)
 }
 
 const waitingDisconnectTimeout = 30 * time.Second
@@ -420,6 +499,7 @@ func (r *Room) SyncPayload() []byte {
 			Preview:       preview,
 			Players:       sp.Players,
 			RoomCode:      sp.RoomCode,
+			PausedFor:     r.pausedFor,
 		})
 		return data
 	case StatusFinished:

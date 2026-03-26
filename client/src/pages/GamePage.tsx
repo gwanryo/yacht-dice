@@ -6,6 +6,8 @@ import DiceTray from '../components/DiceTray';
 import ScoreBoard from '../components/ScoreBoard';
 import ReactionBar from '../components/ReactionBar';
 import HandAnnouncement from '../components/HandAnnouncement';
+import GamePausedOverlay from '../components/GamePausedOverlay';
+import ConfirmDialog from '../components/ConfirmDialog';
 import ErrorBoundary from '../components/ErrorBoundary';
 import type { GameState, GameAction } from '../hooks/useGameState';
 import type { Category } from '../types/game';
@@ -36,6 +38,12 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
   const diceRef = useRef(state.dice);
   diceRef.current = state.dice;
   const pendingShakeRef = useRef(false);
+
+  const [confirmLeave, setConfirmLeave] = useState(false);
+
+  const handleLeave = useCallback(() => {
+    send('game:leave');
+  }, [send]);
 
   // #6: Hand announcement state
   const [announcedHand, setAnnouncedHand] = useState<Category | null>(null);
@@ -171,6 +179,31 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
       {/* #6: Hand announcement overlay */}
       <HandAnnouncement category={announcedHand} score={announcedScore} onDone={handleAnnouncementDone} />
 
+      {/* Pause overlay */}
+      <GamePausedOverlay pausedFor={state.pausedFor} />
+
+      {/* Toast notifications */}
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none">
+        {state.toasts.map(toast => (
+          <div key={toast.id} className="bg-black/80 backdrop-blur-md text-white text-sm px-4 py-2 rounded-xl border border-white/10 animate-fade-in">
+            {toast.reason === 'voluntary'
+              ? t('game.leave.toast.voluntary', { name: toast.nickname })
+              : t('game.leave.toast.timeout', { name: toast.nickname })}
+          </div>
+        ))}
+      </div>
+
+      {/* Leave confirmation */}
+      <ConfirmDialog
+        open={confirmLeave}
+        message={t('game.leave.confirm.body')}
+        confirmLabel={t('game.leave.button')}
+        cancelLabel={t('room.cancel')}
+        variant="danger"
+        onConfirm={handleLeave}
+        onCancel={() => setConfirmLeave(false)}
+      />
+
       {/* UI Overlay */}
       <main id="main-content" className="relative z-10 h-full flex flex-col pointer-events-none pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         {/* Top bar — turn indicator */}
@@ -179,9 +212,20 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
             ? 'bg-gradient-to-r from-yellow-600/80 via-amber-500/80 to-yellow-600/80 shadow-lg shadow-yellow-500/20'
             : 'bg-black/40 backdrop-blur-md'
         }`}>
-          <span className="text-white font-bold tabular-nums">
-            {t('game.round')} {state.round}/12
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfirmLeave(true)}
+              className="text-white/60 hover:text-white transition-colors p-1 -ml-1"
+              aria-label={t('game.leave.button')}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <span className="text-white font-bold tabular-nums">
+              {t('game.round')} {state.round}/12
+            </span>
+          </div>
           <span className={`text-sm font-bold ${isMyTurn ? 'text-white' : 'text-gray-300'}`} aria-live="polite">
             {isMyTurn ? t('game.yourTurn') : t('game.waitingTurn', { name: currentNick })}
           </span>
@@ -208,6 +252,7 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
               minimized={rollPhase === 'shaking' || rollPhase === 'rolling'}
               onSelectCategory={isMyTurn && state.rollCount > 0 ? handleScore : undefined}
               onHoverCategory={isMyTurn && state.rollCount > 0 ? handleHoverCategory : undefined}
+              disconnectedPlayers={state.disconnectedPlayers}
             />
           </div>
         </div>

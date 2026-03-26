@@ -2,6 +2,8 @@ package game
 
 import (
 	"testing"
+
+	"yacht-dice-server/message"
 )
 
 func TestNewEngine(t *testing.T) {
@@ -280,6 +282,107 @@ func TestRankings(t *testing.T) {
 	}
 	if rankings[0].Rank != 1 || rankings[1].Rank != 2 {
 		t.Error("ranks should be 1, 2")
+	}
+}
+
+func TestRetirePlayerScoresPreserved(t *testing.T) {
+	e := NewEngine([]string{"p1", "p2", "p3"})
+	e.SetNicknames(map[string]string{"p1": "Alice", "p2": "Bob", "p3": "Charlie"})
+	e.Roll("p1")
+	e.Score("p1", "ones")
+	e.Roll("p2")
+	e.Score("p2", "ones")
+
+	wasTurn := e.RetirePlayer("p2")
+	if wasTurn {
+		t.Error("p2 was not current player, wasTurn should be false")
+	}
+	if len(e.PlayerOrder()) != 2 {
+		t.Errorf("playerOrder len = %d, want 2", len(e.PlayerOrder()))
+	}
+	lp := e.LeftPlayers()
+	if lp["p2"].Scores == nil {
+		t.Fatal("p2 should be in leftPlayers")
+	}
+	if lp["p2"].Nickname != "Bob" {
+		t.Errorf("p2 nickname = %s, want Bob", lp["p2"].Nickname)
+	}
+}
+
+func TestRetireCurrentPlayer(t *testing.T) {
+	e := NewEngine([]string{"p1", "p2"})
+	e.Roll("p1")
+	e.Score("p1", "ones")
+	// p2's turn
+	wasTurn := e.RetirePlayer("p2")
+	if !wasTurn {
+		t.Error("p2 is current player, wasTurn should be true")
+	}
+	if e.CurrentPlayer() != "p1" {
+		t.Errorf("after retiring current, current = %s, want p1", e.CurrentPlayer())
+	}
+}
+
+func TestRankingsIncludesLeftPlayers(t *testing.T) {
+	e := NewEngine([]string{"p1", "p2", "p3"})
+	e.SetNicknames(map[string]string{"p1": "Alice", "p2": "Bob", "p3": "Charlie"})
+	e.Roll("p1")
+	e.Score("p1", "choice")
+	e.Roll("p2")
+	e.Score("p2", "choice")
+	e.Roll("p3")
+	e.Score("p3", "choice")
+
+	e.RetirePlayer("p2")
+
+	cats := AllCategories()
+	for _, cat := range cats {
+		if cat == "choice" {
+			continue
+		}
+		for _, pid := range e.PlayerOrder() {
+			e.Roll(pid)
+			e.Score(pid, cat)
+		}
+	}
+
+	rankings := e.Rankings()
+	if len(rankings) != 3 {
+		t.Fatalf("rankings len = %d, want 3", len(rankings))
+	}
+	var p2Entry *message.RankEntry
+	for i := range rankings {
+		if rankings[i].PlayerID == "p2" {
+			p2Entry = &rankings[i]
+			break
+		}
+	}
+	if p2Entry == nil {
+		t.Fatal("p2 should appear in rankings")
+	}
+	if !p2Entry.LeftEarly {
+		t.Error("p2 should have LeftEarly = true")
+	}
+	if p2Entry.Nickname != "Bob" {
+		t.Errorf("p2 nickname = %s, want Bob", p2Entry.Nickname)
+	}
+}
+
+func TestRetireNonexistentPlayer(t *testing.T) {
+	e := NewEngine([]string{"p1", "p2"})
+	wasTurn := e.RetirePlayer("p99")
+	if wasTurn {
+		t.Error("nonexistent player should return false")
+	}
+}
+
+func TestRetireLastActivePlayer(t *testing.T) {
+	e := NewEngine([]string{"p1"})
+	e.Roll("p1")
+	e.Score("p1", "ones")
+	e.RetirePlayer("p1")
+	if !e.IsFinished() {
+		t.Error("game should be finished when last player retires")
 	}
 }
 

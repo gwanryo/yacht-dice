@@ -7,8 +7,14 @@ import (
 	"yacht-dice-server/message"
 )
 
+type LeftPlayer struct {
+	Nickname string
+	Scores   map[string]int
+}
+
 type Engine struct {
 	playerOrder []string
+	nicknames   map[string]string
 	turnIdx     int
 	round       int
 	dice        [5]int
@@ -16,6 +22,7 @@ type Engine struct {
 	rollCount   int
 	scores      map[string]map[string]int
 	finished    bool
+	leftPlayers map[string]LeftPlayer
 }
 
 func NewEngine(playerOrder []string) *Engine {
@@ -25,10 +32,30 @@ func NewEngine(playerOrder []string) *Engine {
 	}
 	return &Engine{
 		playerOrder: playerOrder,
+		nicknames:   make(map[string]string),
 		turnIdx:     0,
 		round:       1,
 		scores:      scores,
+		leftPlayers: make(map[string]LeftPlayer),
 	}
+}
+
+func (e *Engine) SetNicknames(nicks map[string]string) {
+	for k, v := range nicks {
+		e.nicknames[k] = v
+	}
+}
+
+func (e *Engine) LeftPlayers() map[string]LeftPlayer {
+	out := make(map[string]LeftPlayer)
+	for pid, lp := range e.leftPlayers {
+		scores := make(map[string]int)
+		for k, v := range lp.Scores {
+			scores[k] = v
+		}
+		out[pid] = LeftPlayer{Nickname: lp.Nickname, Scores: scores}
+	}
+	return out
 }
 
 func (e *Engine) CurrentPlayer() string {
@@ -172,6 +199,34 @@ func (e *Engine) RemovePlayer(playerID string) {
 	}
 }
 
+// RetirePlayer preserves the player's scores and nickname in leftPlayers,
+// then removes them from the active turn order. Returns true if it was the player's turn.
+func (e *Engine) RetirePlayer(playerID string) bool {
+	idx := -1
+	for i, pid := range e.playerOrder {
+		if pid == playerID {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return false
+	}
+	if scores, ok := e.scores[playerID]; ok {
+		snap := make(map[string]int)
+		for k, v := range scores {
+			snap[k] = v
+		}
+		e.leftPlayers[playerID] = LeftPlayer{
+			Nickname: e.nicknames[playerID],
+			Scores:   snap,
+		}
+	}
+	wasTurn := idx == e.turnIdx
+	e.RemovePlayer(playerID)
+	return wasTurn
+}
+
 func (e *Engine) Preview(playerID string) map[string]int {
 	preview := make(map[string]int)
 	playerScores := e.scores[playerID]
@@ -188,14 +243,19 @@ func (e *Engine) Preview(playerID string) map[string]int {
 
 func (e *Engine) Rankings() []message.RankEntry {
 	type ps struct {
-		id    string
-		score int
+		id        string
+		nickname  string
+		score     int
+		leftEarly bool
 	}
 	var list []ps
 	for _, pid := range e.playerOrder {
 		if scores, ok := e.scores[pid]; ok {
-			list = append(list, ps{pid, TotalScore(scores)})
+			list = append(list, ps{pid, e.nicknames[pid], TotalScore(scores), false})
 		}
+	}
+	for pid, lp := range e.leftPlayers {
+		list = append(list, ps{pid, lp.Nickname, TotalScore(lp.Scores), true})
 	}
 	for i := 0; i < len(list); i++ {
 		for j := i + 1; j < len(list); j++ {
@@ -207,9 +267,11 @@ func (e *Engine) Rankings() []message.RankEntry {
 	rankings := make([]message.RankEntry, len(list))
 	for i, p := range list {
 		rankings[i] = message.RankEntry{
-			PlayerID: p.id,
-			Score:    p.score,
-			Rank:     i + 1,
+			PlayerID:  p.id,
+			Nickname:  p.nickname,
+			Score:     p.score,
+			Rank:      i + 1,
+			LeftEarly: p.leftEarly,
 		}
 	}
 	return rankings

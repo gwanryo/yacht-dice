@@ -133,6 +133,76 @@ func TestValidEmojisReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestRankEntryLeftEarly(t *testing.T) {
+	entry := RankEntry{
+		PlayerID:  "p1",
+		Nickname:  "Alice",
+		Score:     120,
+		Rank:      1,
+		LeftEarly: true,
+	}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	json.Unmarshal(data, &decoded)
+	if decoded["leftEarly"] != true {
+		t.Errorf("leftEarly = %v, want true", decoded["leftEarly"])
+	}
+}
+
+func TestPlayerLeftPayload(t *testing.T) {
+	p := PlayerLeftPayload{
+		PlayerID: "p1",
+		Nickname: "Alice",
+		Reason:   "voluntary",
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	json.Unmarshal(data, &decoded)
+	if decoded["reason"] != "voluntary" {
+		t.Errorf("reason = %v, want voluntary", decoded["reason"])
+	}
+}
+
+func TestGamePausedPayload(t *testing.T) {
+	p := GamePausedPayload{
+		PlayerID:  "p1",
+		Nickname:  "Alice",
+		ExpiresAt: 1711540860000,
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	json.Unmarshal(data, &decoded)
+	if decoded["expiresAt"].(float64) != 1711540860000 {
+		t.Errorf("expiresAt = %v, want 1711540860000", decoded["expiresAt"])
+	}
+}
+
+func TestGameSyncPausedForField(t *testing.T) {
+	sync := GameSyncPayload{
+		PausedFor: &GamePausedPayload{
+			PlayerID:  "p2",
+			Nickname:  "Bob",
+			ExpiresAt: 1711540860000,
+		},
+	}
+	data, _ := json.Marshal(sync)
+	var decoded map[string]any
+	json.Unmarshal(data, &decoded)
+	pf := decoded["pausedFor"].(map[string]any)
+	if pf["playerId"] != "p2" {
+		t.Errorf("pausedFor.playerId = %v, want p2", pf["playerId"])
+	}
+}
+
 func TestNewRoundTrip(t *testing.T) {
 	// Create a message, serialize it, parse it back
 	original := ConnectedPayload{PlayerID: "abc123", Token: "abc123:deadbeef"}

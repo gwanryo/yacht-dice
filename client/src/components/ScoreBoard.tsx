@@ -20,6 +20,7 @@ interface Props {
   minimized?: boolean;
   onSelectCategory?: (category: Category) => void;
   onHoverCategory?: (category: string | null) => void;
+  disconnectedPlayers?: string[];
 }
 
 function upperSum(playerScores: Record<string, number>): number {
@@ -35,6 +36,7 @@ function total(playerScores: Record<string, number>): number {
 export default memo(function ScoreBoard({
   players, scores, currentPlayer, myId, rollCount,
   preview, hoveredCategory, minimized, onSelectCategory, onHoverCategory,
+  disconnectedPlayers = [],
 }: Props) {
   const { t } = useTranslation();
   const useShortNames = players.length >= 3;
@@ -157,8 +159,9 @@ export default memo(function ScoreBoard({
         {players.map((p, idx) => {
           const isCurrent = p.id === currentPlayer;
           return (
-            <div key={p.id} className={`flex items-center gap-2 transition-[opacity,transform] duration-300 ${isCurrent ? 'scale-110' : 'opacity-70'}`}>
+            <div key={p.id} className={`flex items-center gap-2 transition-[opacity,transform] duration-300 ${isCurrent ? 'scale-110' : 'opacity-70'} ${disconnectedPlayers.includes(p.id) ? 'opacity-40' : ''}`}>
               <span className={`text-xs truncate max-w-[4rem] ${isCurrent ? 'text-yellow-300 font-semibold' : 'text-gray-400'}`}>
+                {disconnectedPlayers.includes(p.id) && <span className="mr-0.5" aria-label="disconnected">&#9888;</span>}
                 {p.nickname}{p.id === myId ? ` ${t('game.me')}` : ''}
               </span>
               <span className={`font-bold tabular-nums text-lg ${isCurrent ? 'text-white' : 'text-gray-300'}`}>
@@ -184,8 +187,9 @@ export default memo(function ScoreBoard({
           {players.map((p, idx) => {
             const isCurrent = p.id === currentPlayer;
             return (
-              <div key={p.id} className={`flex items-center gap-1.5 ${isCurrent ? '' : 'opacity-60'}`}>
+              <div key={p.id} className={`flex items-center gap-1.5 ${isCurrent ? '' : 'opacity-60'} ${disconnectedPlayers.includes(p.id) ? 'opacity-40' : ''}`}>
                 <span className={`text-xs truncate max-w-[4rem] ${isCurrent ? 'text-yellow-300 font-semibold' : 'text-gray-400'}`}>
+                  {disconnectedPlayers.includes(p.id) && <span className="mr-0.5" aria-label="disconnected">&#9888;</span>}
                   {p.nickname}
                 </span>
                 <span className={`font-bold tabular-nums ${isCurrent ? 'text-white' : 'text-gray-300'}`}>
@@ -227,7 +231,10 @@ export default memo(function ScoreBoard({
                     <th key={p.id} className={`px-2 py-1 text-center text-xs transition-colors min-w-0 max-w-[5rem] ${
                       p.id === currentPlayer ? 'text-yellow-300 font-bold' : 'text-gray-500'
                     }`}>
-                      <span className="block truncate">{p.nickname}{p.id === myId ? ` ${t('game.me')}` : ''}</span>
+                      <span className={`block truncate ${disconnectedPlayers.includes(p.id) ? 'opacity-40' : ''}`}>
+                        {disconnectedPlayers.includes(p.id) && <span className="mr-0.5" aria-label="disconnected">&#9888;</span>}
+                        {p.nickname}{p.id === myId ? ` ${t('game.me')}` : ''}
+                      </span>
                     </th>
                   ))}
                 </tr>

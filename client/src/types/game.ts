@@ -61,6 +61,7 @@ export interface GameSyncPayload {
   preview: Record<string, number>;
   players: PlayerInfo[];
   roomCode: string;
+  pausedFor?: GamePausedPayload | null;
 }
 
 export interface RankEntry {
@@ -68,6 +69,19 @@ export interface RankEntry {
   nickname: string;
   score: number;
   rank: number;
+  leftEarly?: boolean;
+}
+
+export interface GamePausedPayload {
+  playerId: string;
+  nickname: string;
+  expiresAt: number;
+}
+
+export interface PlayerLeftPayload {
+  playerId: string;
+  nickname: string;
+  reason: 'voluntary' | 'timeout' | 'normal';
 }
 
 export interface GameEndPayload {

@@ -21,6 +21,9 @@ export interface GameState {
   pourCount: number;
   rematchVotes: string[];
   lastScored: { playerId: string; category: string; score: number } | null;
+  disconnectedPlayers: string[];
+  pausedFor: { playerId: string; nickname: string; expiresAt: number } | null;
+  toasts: { id: string; nickname: string; reason: 'voluntary' | 'timeout' }[];
 }
 
 export type GameAction =
@@ -35,7 +38,7 @@ export type GameAction =
   | { type: 'SET_SCORES'; scores: Record<string, Record<string, number>> }
   | { type: 'GAME_SCORED'; playerId: string; category: string; score: number; scores: Record<string, Record<string, number>> }
   | { type: 'GAME_END'; rankings: RankEntry[] }
-  | { type: 'GAME_SYNC'; dice: number[]; held: boolean[]; rollCount: number; scores: Record<string, Record<string, number>>; currentPlayer: string; round: number; preview: Record<string, number>; players: PlayerInfo[]; roomCode: string }
+  | { type: 'GAME_SYNC'; dice: number[]; held: boolean[]; rollCount: number; scores: Record<string, Record<string, number>>; currentPlayer: string; round: number; preview: Record<string, number>; players: PlayerInfo[]; roomCode: string; pausedFor?: { playerId: string; nickname: string; expiresAt: number } | null }
   | { type: 'ADD_REACTION'; playerId: string; emoji: string }
   | { type: 'CLEAR_REACTION'; id: string }
   | { type: 'SET_HOVERED'; category: string | null; playerId: string }
@@ -46,7 +49,13 @@ export type GameAction =
   | { type: 'CLEAR_NICKNAME' }
   | { type: 'CLEAR_LAST_SCORED' }
   | { type: 'ROOM_SYNC'; roomCode: string; players: PlayerInfo[] }
-  | { type: 'RESULT_SYNC'; rankings: RankEntry[]; scores: Record<string, Record<string, number>>; rematchVotes: string[]; players: PlayerInfo[]; roomCode: string };
+  | { type: 'RESULT_SYNC'; rankings: RankEntry[]; scores: Record<string, Record<string, number>>; rematchVotes: string[]; players: PlayerInfo[]; roomCode: string }
+  | { type: 'PLAYER_DISCONNECTED'; playerId: string }
+  | { type: 'PLAYER_RECONNECTED'; playerId: string }
+  | { type: 'GAME_PAUSED'; playerId: string; nickname: string; expiresAt: number }
+  | { type: 'GAME_RESUMED'; playerId: string }
+  | { type: 'ADD_TOAST'; id: string; nickname: string; reason: 'voluntary' | 'timeout' }
+  | { type: 'REMOVE_TOAST'; id: string };
 
 const EMPTY_HELD: boolean[] = [false, false, false, false, false];
 
@@ -68,6 +77,9 @@ const initialState: GameState = {
   pourCount: 0,
   rematchVotes: [],
   lastScored: null,
+  disconnectedPlayers: [],
+  pausedFor: null,
+  toasts: [],
 };
 
 function reducer(state: GameState, action: GameAction): GameState {
@@ -101,7 +113,7 @@ function reducer(state: GameState, action: GameAction): GameState {
     case 'GAME_END':
       return { ...state, phase: 'result', rankings: action.rankings };
     case 'GAME_SYNC':
-      return { ...state, dice: action.dice, held: action.held, rollCount: action.rollCount, scores: action.scores, currentPlayer: action.currentPlayer, round: action.round, phase: 'game', preview: action.preview ?? {}, players: action.players, roomCode: action.roomCode };
+      return { ...state, dice: action.dice, held: action.held, rollCount: action.rollCount, scores: action.scores, currentPlayer: action.currentPlayer, round: action.round, phase: 'game', preview: action.preview ?? {}, players: action.players, roomCode: action.roomCode, pausedFor: action.pausedFor ?? null };
     case 'SET_HOVERED':
       return { ...state, hoveredCategory: { category: action.category, playerId: action.playerId } };
     case 'ADD_REACTION': {
@@ -126,6 +138,18 @@ function reducer(state: GameState, action: GameAction): GameState {
       return { ...state, phase: 'room', roomCode: action.roomCode, players: action.players };
     case 'RESULT_SYNC':
       return { ...state, phase: 'result', rankings: action.rankings, scores: action.scores, rematchVotes: action.rematchVotes, players: action.players, roomCode: action.roomCode };
+    case 'PLAYER_DISCONNECTED':
+      return { ...state, disconnectedPlayers: [...state.disconnectedPlayers, action.playerId] };
+    case 'PLAYER_RECONNECTED':
+      return { ...state, disconnectedPlayers: state.disconnectedPlayers.filter(id => id !== action.playerId) };
+    case 'GAME_PAUSED':
+      return { ...state, pausedFor: { playerId: action.playerId, nickname: action.nickname, expiresAt: action.expiresAt } };
+    case 'GAME_RESUMED':
+      return { ...state, pausedFor: null, disconnectedPlayers: state.disconnectedPlayers.filter(id => id !== action.playerId) };
+    case 'ADD_TOAST':
+      return { ...state, toasts: [...state.toasts, { id: action.id, nickname: action.nickname, reason: action.reason }] };
+    case 'REMOVE_TOAST':
+      return { ...state, toasts: state.toasts.filter(t => t.id !== action.id) };
     default:
       return state;
   }

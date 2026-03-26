@@ -6,7 +6,7 @@ import type {
   RoomState, GameRolledPayload, GameScoredPayload,
   GameTurnPayload, GameSyncPayload, GameEndPayload,
   ReactionShowPayload, GameHeldPayload, GameHoveredPayload,
-  ResultSyncPayload,
+  ResultSyncPayload, GamePausedPayload, PlayerLeftPayload,
 } from '../types/game';
 
 type WS = ReturnType<typeof useWebSocket>;
@@ -16,17 +16,25 @@ export function useGameEvents(
   dispatch: Dispatch<GameAction>,
   setError: (error: string | null) => void,
   getPhase: () => string,
+  getPlayerId: () => string | null,
 ) {
   const errorTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     const unsubs = [
       ws.on('room:state', (env) => {
+        const p = env.payload as RoomState;
+        // During game phase, room:state means a player reconnected — clear disconnect indicators
+        if (getPhase() === 'game') {
+          for (const player of p.players) {
+            dispatch({ type: 'PLAYER_RECONNECTED', playerId: player.id });
+          }
+          return;
+        }
         // Only process room:state when already in room phase.
         // Lobby entry is handled by LobbyPage (room:joined/room:created).
         // Result/game phases should not be interrupted by room:state.
         if (getPhase() !== 'room') return;
-        const p = env.payload as RoomState;
         dispatch({ type: 'SET_ROOM_STATE', roomCode: p.roomCode, players: p.players });
       }),
       ws.on('rematch:start', (env) => {
@@ -83,9 +91,35 @@ export function useGameEvents(
         const p = env.payload as ReactionShowPayload;
         dispatch({ type: 'ADD_REACTION', playerId: p.playerId, emoji: p.emoji });
       }),
-      ws.on('player:left', (env) => {
+      ws.on('player:disconnected', (env) => {
         const p = env.payload as { playerId: string };
+        dispatch({ type: 'PLAYER_DISCONNECTED', playerId: p.playerId });
+      }),
+      ws.on('game:paused', (env) => {
+        const p = env.payload as GamePausedPayload;
+        dispatch({ type: 'GAME_PAUSED', playerId: p.playerId, nickname: p.nickname, expiresAt: p.expiresAt });
+      }),
+      ws.on('game:resumed', (env) => {
+        const p = env.payload as { playerId: string };
+        dispatch({ type: 'GAME_RESUMED', playerId: p.playerId });
+      }),
+      ws.on('player:left', (env) => {
+        const p = env.payload as PlayerLeftPayload;
+        if (p.playerId === getPlayerId()) {
+          // Self left — go to lobby
+          const url = new URL(window.location.href);
+          url.searchParams.delete('room');
+          window.history.replaceState({}, '', url);
+          dispatch({ type: 'RESET_GAME' });
+          return;
+        }
         dispatch({ type: 'REMOVE_PLAYER', playerId: p.playerId });
+        dispatch({ type: 'GAME_RESUMED', playerId: p.playerId });
+        if (p.reason && p.reason !== 'normal' && p.nickname) {
+          const id = `left-${p.playerId}-${Date.now()}`;
+          dispatch({ type: 'ADD_TOAST', id, nickname: p.nickname, reason: p.reason as 'voluntary' | 'timeout' });
+          setTimeout(() => dispatch({ type: 'REMOVE_TOAST', id }), 3000);
+        }
       }),
       ws.on('error', (env) => {
         const p = env.payload as { message: string };
@@ -98,5 +132,5 @@ export function useGameEvents(
       unsubs.forEach(u => u());
       clearTimeout(errorTimerRef.current);
     };
-  }, [ws.on, dispatch, setError, getPhase]);
+  }, [ws.on, dispatch, setError, getPhase, getPlayerId]);
 }
