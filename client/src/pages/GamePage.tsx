@@ -229,7 +229,7 @@ export default function GamePage({ state, dispatch, send, playerId }: Props) {
             held={state.held}
             rollCount={state.rollCount}
             isMyTurn={isMyTurn}
-            settled={rollPhase === 'settled' || rollPhase === 'idle'}
+            settled={(rollPhase === 'settled' || rollPhase === 'idle') && !(state.rollCount > prevRollCountRef.current && state.dice.length === 5)}
             onHold={handleHold}
             action={
               !isMyTurn ? (
